@@ -110,8 +110,9 @@ button{cursor:pointer}
 .right-tools{display:flex;gap:8px;align-items:flex-start;position:relative}
 .tr-dock{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:max(16px, calc(env(safe-area-inset-right,0px) + 12px));display:flex;align-items:center;gap:8px;z-index:20}
 .sec-dock{position:relative}
-.pill-btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 16px 0 14px;border-radius:var(--r-lg);font-weight:500;font-size:14px;line-height:1.4;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--ink)}
-.pill-btn:hover{background:#FAFAF9}
+/* Top-right controls use the white button style from the Figma file (gradient fill, inner highlight, soft drop shadow). */
+.pill-btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 16px 0 14px;border-radius:var(--r-lg);font-weight:500;font-size:14px;line-height:1.4;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,0) 100%),#FFFFFF;border:1px solid rgba(30,30,30,.07);box-shadow:inset 0 0 0 1px #FFFFFF,0 2px 6px rgba(0,0,0,.07);color:#1E1E1E}
+.pill-btn:hover{background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,0) 100%),#FAFAF9}
 .pill-btn .count{font-size:12px;color:var(--muted);background:var(--hover);border-radius:6px;padding:0 6px}
 .popover{position:absolute;top:calc(100% + 8px);right:0;width:260px;max-height:min(60vh,420px);overflow:auto;padding:6px}
 .popover h4{margin:6px 8px 6px;font-size:12px;font-weight:500;color:var(--muted);letter-spacing:-.01em}
@@ -134,6 +135,7 @@ button{cursor:pointer}
 [data-tip] kbd{font-family:var(--mono)}
 
 .zoom{display:flex;align-items:center;gap:2px;padding:5px}
+.tr-dock .panel.zoom{border-radius:var(--r-lg);background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,0) 100%),#FFFFFF;border:1px solid rgba(30,30,30,.07);box-shadow:inset 0 0 0 1px #FFFFFF,0 2px 6px rgba(0,0,0,.07);color:#1E1E1E}
 .zbtn{width:34px;height:34px;border:0;background:transparent;border-radius:var(--r-md);display:grid;place-items:center;color:var(--ink);position:relative}
 .zbtn:hover{background:var(--hover)}
 .zbtn svg{width:17px;height:17px}

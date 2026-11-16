@@ -302,12 +302,14 @@ body.viewer #viewport{cursor:grab}
 }
 
 /* ---------- Rotate: corner zones on desktop ---------- */
-.polaroid .rot{position:absolute;width:calc(26px * var(--inv));height:calc(26px * var(--inv));display:none;place-items:center;z-index:4;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab}
+.polaroid .rot{position:absolute;width:calc(32px * var(--inv));height:calc(32px * var(--inv));display:none;place-items:center;z-index:4;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab}
 .polaroid .rot svg{width:calc(15px * var(--inv));height:calc(15px * var(--inv));color:#A8A29E;opacity:0;transition:opacity .18s ease}
-.polaroid .rot.tl{left:calc(-28px * var(--inv));top:calc(-28px * var(--inv))}
-.polaroid .rot.tr{right:calc(-28px * var(--inv));top:calc(-28px * var(--inv))}
-.polaroid .rot.bl{left:calc(-28px * var(--inv));bottom:calc(-28px * var(--inv))}
-.polaroid .rot.br{right:calc(-28px * var(--inv));bottom:calc(-28px * var(--inv))}
+/* Each zone sits on its corner (a little inside the frame, mostly outside) so pointing at the corner finds it. */
+.polaroid .rot.tl{left:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
+.polaroid .rot.tr{right:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
+.polaroid .rot.bl{left:calc(-22px * var(--inv));bottom:calc(-22px * var(--inv))}
+.polaroid .rot.br{right:calc(-22px * var(--inv));bottom:calc(-22px * var(--inv))}
+.polaroid .handle{z-index:6}
 @media (hover:hover) and (pointer:fine){
   .polaroid:hover .rot,.polaroid.sel .rot,.polaroid.rotating .rot{display:grid}
   .polaroid .rot:hover svg,.polaroid.rotating .rot svg{opacity:1}

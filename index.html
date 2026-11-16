@@ -264,6 +264,21 @@ body.presenting #viewport{pointer-events:none}
 .show-bar .show-title{font-family:"Caveat","Bradley Hand","Segoe Print",cursive;font-weight:600;font-size:20px;line-height:1;margin-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
 .show-bar .show-count{font-size:12px;color:var(--muted);min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
 
+/* ---------- Editor sign-in & public view ---------- */
+.auth{pointer-events:auto;margin-top:6px;position:relative}
+.auth-btn{border:0;background:transparent;padding:2px 6px;margin-left:-2px;border-radius:var(--r-sm);font-size:12px;color:var(--muted);cursor:pointer}
+.auth-btn:hover{background:var(--hover);color:var(--ink)}
+.auth-pop{position:absolute;top:calc(100% + 6px);left:0;width:min(300px, calc(100vw - 32px));padding:14px;display:flex;flex-direction:column;gap:10px;z-index:30}
+.auth-pop label{font-size:12px;color:var(--muted)}
+.auth-pop input{height:40px;border:1px solid var(--line);border-radius:var(--r-md);padding:0 12px;font-size:14px;background:#FFFFFF;outline:none}
+.auth-pop input:focus{border-color:#A8A29E}
+.auth-pop .btn{width:100%}
+.auth-pop p{margin:0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.auth-pop p:empty{display:none}
+body.viewer .toolbar{display:none}
+body.viewer .handle{display:none!important}
+body.viewer #viewport{cursor:grab}
+
 /* Icon line-draw on hover: each stroke is drawn from one end to the other */
 button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
 @media (hover:hover) and (prefers-reduced-motion:no-preference){
@@ -288,6 +303,15 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
   <div class="logo-wrap">
     <h1 class="logo">admerl memories</h1>
     <span class="status" id="status" data-s="loading"><i></i><span id="statusText">Loading…</span></span>
+    <div class="auth" id="auth" hidden>
+      <button class="auth-btn" id="authBtn" type="button">Sign in to edit</button>
+      <form class="panel auth-pop" id="authPop" hidden>
+        <label for="authEmail">Editor email</label>
+        <input id="authEmail" type="email" required autocomplete="email" placeholder="you@example.com">
+        <button class="btn primary" type="submit" id="authSend">Send sign-in link</button>
+        <p id="authMsg" role="status"></p>
+      </form>
+    </div>
   </div>
 </header>
 
@@ -375,6 +399,7 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
 <input type="file" id="file" accept="image/*" multiple hidden>
 <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 (() => {
 "use strict";
@@ -425,6 +450,12 @@ const SAMPLE = [
   { id:"ex-note-2", type:"note", x:1036, y:70, w:230, rot:2, color:"blue", z:4,
     text:"Add photos with the Add photo button, drag files onto the canvas, or paste with ⌘V." }
 ];
+
+/* ---------------- online backend (Supabase, used outside claude.ai) ---------------- */
+const SUPA = { url: "https://wtiqrzcnbhtvbmdcymqe.supabase.co", key: "sb_publishable_Y3o4IvEfav97Mz8GTxOdlw_iaHyd5t0", bucket: "photos" };
+let sb = null, authUser = null, canEdit = true;
+const readOnly = () => mode === "supa" && !canEdit;
+const supaPhotoUrl = path => `${SUPA.url}/storage/v1/object/public/${SUPA.bucket}/${encodeURIComponent(path)}`;
 
 /* ---------------- helpers ---------------- */
 const uid = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g,"").slice(0,16) : Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -528,7 +559,7 @@ function build(it){
   }
   return el;
 }
-function photoSrc(it){ return it._url || (it.assetId ? "/_blob/" + it.assetId : (it.src || it._tmp || "")); }
+function photoSrc(it){ return it._url || (it.storagePath ? supaPhotoUrl(it.storagePath) : it.assetId ? "/_blob/" + it.assetId : (it.src || it._tmp || "")); }
 function render(it){
   let el = els.get(it.id);
   if (!el) {
@@ -598,9 +629,9 @@ function refreshMeta(){
   if (mode === "loading") { empty.hidden = false; return; }
   empty.hidden = items.size > 0;
   if (items.size === 0) {
-    $("#emptyTitle").textContent = mode === "local" && inViewer ? "Not connected to your online board" : "Your board is empty";
-    $("#emptyText").textContent = mode === "local" && inViewer ? "Open this board at claude.ai in a browser where you’re signed in to see and save your photos." : "Add photos to get started.";
-    $("#emptyActions").hidden = !canAddPhotos() && mode === "db";
+    $("#emptyTitle").textContent = mode === "local" && inViewer ? "Not connected to your online board" : readOnly() ? "Nothing here yet" : "Your board is empty";
+    $("#emptyText").textContent = mode === "local" && inViewer ? "Open this board at claude.ai in a browser where you’re signed in to see and save your photos." : readOnly() ? "Photos will show up here once they’re added." : "Add photos to get started.";
+    $("#emptyActions").hidden = !canAddPhotos();
   }
 }
 
@@ -649,17 +680,26 @@ function saveLocal(){
 function persist(it){
   if (!it || it._draft || it._uploading) return;
   if (mode === "db") enqueue(it.id, () => db.collection("items").doc(it.id).set(clean(it)));
+  else if (mode === "supa") { if (canEdit) enqueue(it.id, () => supaWrite(sb.from("items").upsert({ id: it.id, data: clean(it), updated_at: new Date().toISOString() }))); }
   else if (mode === "local") saveLocal();
+}
+async function supaWrite(q){
+  const { error } = await q;
+  if (error) {
+    const denied = error.code === "42501" || /row-level security|permission|JWT/i.test(error.message || "");
+    throw Object.assign(new Error(error.message), { code: denied ? "not_granted" : "unavailable" });
+  }
 }
 function persistDelete(id){
   if (mode === "db") enqueue(id, () => db.collection("items").doc(id).delete());
+  else if (mode === "supa") { if (canEdit) enqueue(id, () => supaWrite(sb.from("items").delete().eq("id", id))); }
   else if (mode === "local") saveLocal();
 }
 function saveTitle(t){
   if (mode === "db") enqueue("__meta", () => db.doc("board/meta").set({ title: t }));
   else lsSet("pw-title", t);
 }
-function canAddPhotos(){ return mode === "local" || (mode === "db" && !!assets); }
+function canAddPhotos(){ return mode === "local" || (mode === "db" && !!assets) || (mode === "supa" && canEdit); }
 
 /* ---------------- init ---------------- */
 function restoreCam(){
@@ -686,6 +726,12 @@ function startLocal(reason){
 async function init(){
   applyCam();
   refreshMeta();
+  const onWeb = !window.claude && /^https?:$/.test(location.protocol) && !/claude|anthropic/i.test(location.hostname);
+  if (onWeb) {
+    if (window.supabase && typeof window.supabase.createClient === "function") { initSupabase(); return; }
+    startLocal("The online board couldn’t be reached (the connection library didn’t load), so changes are saved on this device only. Reload to try again.");
+    return;
+  }
   // The viewer can attach window.claude a moment after the page starts; give it time.
   let c = window.claude;
   for (let i = 0; i < 30 && !(c && typeof c.use === "function"); i++) { await new Promise(r => setTimeout(r, 100)); c = window.claude; }
@@ -758,6 +804,107 @@ async function migrateItems(list){
   const failed = list.length - done.size;
   toast(failed ? `Uploaded ${done.size}. ${failed} couldn’t be uploaded; they’re still on this device.` : `Uploaded ${done.size} item${done.size === 1 ? "" : "s"} to the online board.`, { duration: 6000 });
 }
+async function supaFetchAll(){
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from("items").select("id,data").range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+function applyRemoteRow(row){
+  if (!row || !row.id || busy.has(row.id)) return;
+  const prev = items.get(row.id), it = { ...(row.data || {}), id: row.id };
+  if (prev && JSON.stringify(clean(prev)) === JSON.stringify(clean(it))) return;
+  items.set(it.id, it); render(it);
+}
+async function supaResync(){
+  try {
+    const rows = await supaFetchAll();
+    const seen = new Set(rows.map(r => r.id));
+    rows.forEach(applyRemoteRow);
+    for (const id of [...items.keys()]) if (!seen.has(id) && !busy.has(id) && !items.get(id)._uploading && !items.get(id)._draft) { items.delete(id); removeEl(id); selected.delete(id); }
+    refreshMeta(); renderSelection();
+    if ($("#status").dataset.s === "slow") setStatus("saved");
+  } catch (e) { console.warn("resync", e); }
+}
+async function initSupabase(){
+  sb = window.supabase.createClient(SUPA.url, SUPA.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+  canEdit = false;
+  const slowT = setTimeout(() => setStatus("slow"), 6000);
+  try {
+    await refreshAuth();
+    const rows = await supaFetchAll();
+    clearTimeout(slowT);
+    mode = "supa";
+    rows.forEach(applyRemoteRow);
+    setStatus("saved"); applyRole();
+    refreshMeta(); renderSelection();
+    requestAnimationFrame(() => { if (!restoreCam()) fitAll(); });
+  } catch (e) {
+    clearTimeout(slowT); console.warn(e);
+    mode = "supa"; applyRole(); refreshMeta();
+    setStatus("error", "Couldn’t load · tap to retry");
+    toast("Couldn’t load the board. Check your connection.", { action: "Retry", duration: 15000, onAction: () => location.reload() });
+    return;
+  }
+  sb.auth.onAuthStateChange((_evt, session) => { refreshAuth(session); });
+  let subscribedOnce = false;
+  sb.channel("board-items")
+    .on("postgres_changes", { event: "*", schema: "public", table: "items" }, p => {
+      if (p.eventType === "DELETE") {
+        const id = p.old && p.old.id;
+        if (!id || busy.has(id) || !items.has(id)) return;
+        items.delete(id); removeEl(id); selected.delete(id);
+      } else applyRemoteRow(p.new);
+      refreshMeta(); renderSelection();
+    })
+    .subscribe(status => {
+      if (status === "SUBSCRIBED") { if (subscribedOnce) supaResync(); subscribedOnce = true; }
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setStatus("slow");
+    });
+  // Catch up on anything missed while the phone was asleep or offline.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") supaResync(); });
+  addEventListener("online", supaResync);
+}
+async function refreshAuth(session){
+  try {
+    if (session === undefined) session = (await sb.auth.getSession()).data.session;
+    authUser = session ? session.user : null;
+    let editor = false;
+    if (authUser) { const { data, error } = await sb.rpc("is_editor"); editor = !error && data === true; }
+    const was = canEdit; canEdit = editor;
+    if (mode === "supa") { applyRole(); if (authUser && !editor && was !== editor) toast("This email can view the board but not edit it.", { duration: 6000 }); }
+  } catch (e) { console.warn("auth", e); }
+}
+function applyRole(){
+  document.body.classList.toggle("viewer", readOnly());
+  $("#auth").hidden = mode !== "supa";
+  $("#authBtn").textContent = authUser ? (canEdit ? "Sign out" : "Sign out · view only") : "Sign in to edit";
+  if (readOnly()) { setTool("select"); if (gesture && gesture.kind !== "pan") gesture = null; }
+  updateAddAvailability(); refreshMeta(); buildCtx();
+}
+$("#authBtn").addEventListener("click", async e => {
+  e.stopPropagation();
+  if (!sb) return;
+  if (authUser) { await sb.auth.signOut(); toast("Signed out. You’re viewing the board."); return; }
+  const pop = $("#authPop"); pop.hidden = !pop.hidden;
+  if (!pop.hidden) { $("#authMsg").textContent = ""; setTimeout(() => $("#authEmail").focus(), 0); }
+});
+$("#authPop").addEventListener("pointerdown", e => e.stopPropagation());
+$("#authPop").addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") $("#authPop").hidden = true; });
+$("#authPop").addEventListener("submit", async e => {
+  e.preventDefault();
+  const email = $("#authEmail").value.trim(), sendBtn = $("#authSend");
+  if (!email) return;
+  sendBtn.disabled = true; $("#authMsg").textContent = "Sending…";
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } });
+  sendBtn.disabled = false;
+  $("#authMsg").textContent = error ? `Couldn’t send the link: ${error.message}` : "Check your inbox and open the sign-in link on this device.";
+});
+document.addEventListener("click", e => { if (!e.target.closest("#auth")) $("#authPop").hidden = true; });
 function updateAddAvailability(){
   const ok = canAddPhotos();
   $("#addPhotoBtn").hidden = !ok;
@@ -811,6 +958,15 @@ async function addPhoto(file, x, y){
       it.ratio = +ratio.toFixed(4);
       const r = await assets.upload(blob);
       it.assetId = r.id; it._url = r.url;
+    } else if (mode === "supa") {
+      const { blob, ratio } = await prepareImage(file, 2400, .9, true);
+      it.ratio = +ratio.toFixed(4);
+      const type = blob.type || "image/jpeg";
+      const ext = ({ "image/png":"png", "image/gif":"gif", "image/webp":"webp" })[type] || "jpg";
+      const path = `${id}-${Date.now().toString(36)}.${ext}`;
+      const { error } = await sb.storage.from(SUPA.bucket).upload(path, blob, { contentType: type, cacheControl: "31536000", upsert: false });
+      if (error) throw Object.assign(new Error(error.message), { code: /row-level security|unauthorized|permission/i.test(error.message || "") ? "not_granted" : (error.statusCode == 413 ? "too_large" : "unavailable") });
+      it.storagePath = path;
     } else {
       const { blob, ratio } = await prepareImage(file, 1200, .82, false);
       it.ratio = +ratio.toFixed(4);
@@ -827,13 +983,14 @@ async function addPhoto(file, x, y){
     toast(err && err.message === "decode" ? `“${file.name}” couldn’t be read. Try JPG, PNG, or WebP.`
       : code === "too_large" ? `“${file.name}” is too large (max 20 MB).`
       : code === "quota_exceeded" ? "This board’s photo storage is full."
+      : code === "not_granted" ? "Only the board’s editors can add photos. Sign in with an editor email."
       : `Couldn’t upload “${file.name}”.`);
   }
 }
 function addFiles(fileList, at){
   const files = [...fileList].filter(f => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
   if (!files.length) { toast("Choose an image file: JPG, PNG, WebP, or GIF."); return; }
-  if (!canAddPhotos()) { toast(mode === "loading" ? "The board is still loading. Try again in a moment." : "Only editors of this board can add photos."); return; }
+  if (!canAddPhotos()) { toast(mode === "loading" ? "The board is still loading. Try again in a moment." : mode === "supa" ? "Sign in with an editor email to add photos." : "Only editors of this board can add photos."); return; }
   const c = at || viewCenter();
   const W = 260, gap = 44, cols = Math.min(files.length, 4);
   const totalW = cols * W + (cols - 1) * gap;
@@ -878,6 +1035,7 @@ function startEdit(node, id, field){
 function editFromTarget(target){
   const el = target.closest(".item, .section"); if (!el) return false;
   const id = el.dataset.id, it = items.get(id); if (!it) return false;
+  if (readOnly()) { if (it.type === "photo") { openLightbox(id); return true; } return false; }
   if (it.type === "section" && !target.closest(".sec-name")) return false;
   if (it.type === "stroke") return false;
   if (it.type === "photo" && target.closest(".ph")) { openLightbox(id); return true; }
@@ -934,6 +1092,12 @@ vp.addEventListener("pointerdown", e => {
   e.preventDefault();
   const itemEl = e.target.closest(".item, .section");
   const handle = e.target.closest(".handle");
+  if (readOnly()) {
+    // Viewers can look around: drag pans, a tap on a photo opens it, a tap on a chapter shows its options.
+    gesture = { kind:"pan", sx:e.clientX, sy:e.clientY, cx:cam.x, cy:cam.y, touch: e.pointerType === "touch", moved:false, tap: itemEl ? itemEl.dataset.id : null };
+    vp.classList.add("panning");
+    return;
+  }
   const pan = tool === "hand" || spaceDown || e.button === 1 || (e.pointerType === "touch" && !itemEl && tool === "select");
   if (pan) {
     gesture = { kind:"pan", sx:e.clientX, sy:e.clientY, cx:cam.x, cy:cam.y, touch: e.pointerType === "touch", moved:false };
@@ -1055,7 +1219,15 @@ function endPointer(e){
   }
   if (!gesture) return;
   const g = gesture; gesture = null;
-  if (g.kind === "pan") { vp.classList.remove("panning"); if (g.touch && !g.moved) select([]); }
+  if (g.kind === "pan") {
+    vp.classList.remove("panning");
+    if (!g.moved) {
+      const t = g.tap ? items.get(g.tap) : null;
+      if (t && t.type === "photo") openLightbox(t.id);
+      else if (t && t.type === "section") select([t.id]);
+      else if (g.touch || readOnly()) select([]);
+    }
+  }
   else if (g.kind === "pen") finishPen(g);
   else if (g.kind === "move") {
     commitMove();
@@ -1224,6 +1396,16 @@ function buildCtx(){
   const ids = [...selected].filter(id => items.has(id));
   if (!ids.length) { ctxEl.classList.add("hide"); return; }
   const list = ids.map(id => items.get(id));
+  if (readOnly()) {
+    const it = list.length === 1 ? list[0] : null;
+    if (it && it.type === "photo") ctxEl.append(btn(ICON.view, "View", () => openLightbox(it.id)));
+    else if (it && it.type === "section") ctxEl.append(
+      btn(ICON.play, "Slideshow", () => startShow(it.id)),
+      btn(ICON.download, "Download PNG", () => downloadChapter(it.id)),
+      btn(ICON.focus, "Zoom", () => zoomToRect({ x: it.x, y: it.y - 50, w: it.w, h: it.h + 50 })));
+    if (!ctxEl.childElementCount) { ctxEl.classList.add("hide"); return; }
+    ctxEl.classList.remove("hide"); positionCtx(); return;
+  }
   const update = (fn) => { list.forEach(it => { fn(it); render(it); persist(it); }); buildCtx(); };
   if (list.length === 1) {
     const it = list[0];
@@ -1290,9 +1472,15 @@ function deleteSelected(){
     duration: 7000,
     onAction: () => { undone = true; removed.forEach(it => { items.set(it.id, it); render(it); persist(it); }); select(removed.map(r => r.id)); refreshMeta(); },
     onExpire: () => {
-      if (undone || mode !== "db" || !assets) return;
-      const still = new Set([...items.values()].map(i => i.assetId).filter(Boolean));
-      removed.forEach(it => { if (it.assetId && !still.has(it.assetId)) assets.delete(it.assetId).catch(() => {}); });
+      if (undone) return;
+      if (mode === "db" && assets) {
+        const still = new Set([...items.values()].map(i => i.assetId).filter(Boolean));
+        removed.forEach(it => { if (it.assetId && !still.has(it.assetId)) assets.delete(it.assetId).catch(() => {}); });
+      } else if (mode === "supa" && canEdit) {
+        const still = new Set([...items.values()].map(i => i.storagePath).filter(Boolean));
+        const gone = removed.map(it => it.storagePath).filter(p => p && !still.has(p));
+        if (gone.length) sb.storage.from(SUPA.bucket).remove(gone).catch(() => {});
+      }
     }
   });
 }
@@ -1408,6 +1596,11 @@ addEventListener("keydown", e => {
   if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomBy(1.25); return; }
   if (mod && e.key === "-") { e.preventDefault(); zoomBy(0.8); return; }
   if (mod && e.key === "0") { e.preventDefault(); zoomAt(innerWidth/2, innerHeight/2, 1); return; }
+  if (readOnly()) {
+    if (e.shiftKey && (e.key === "!" || e.code === "Digit1")) { e.preventDefault(); fitAll(); }
+    else if (e.key === "Escape") select([]);
+    return;
+  }
   if (mod && e.key.toLowerCase() === "a") { e.preventDefault(); select([...items.keys()]); return; }
   if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateSelected(); return; }
   if (mod) return;
@@ -1626,7 +1819,7 @@ addEventListener("keydown", e => {
 
 /* ---------------- download chapter as PNG ---------------- */
 function loadImg(src){
-  return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  return new Promise((res, rej) => { const im = new Image(); if (/^https?:/.test(src)) im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = rej; im.src = src; });
 }
 function wrapLines(ctx, text, maxW){
   const out = [];
@@ -1643,7 +1836,12 @@ function wrapLines(ctx, text, maxW){
 async function downloadChapter(sid){
   const sec = items.get(sid); if (!sec) return;
   const dl = window.claude && typeof window.claude.use === "function" ? await window.claude.use("downloads") : null;
-  if (!dl) { toast("Downloads aren’t available in this view."); return; }
+  const saveBlob = async (filename, data) => {
+    if (dl) return dl.save({ filename, data });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(data); a.download = filename; document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  };
   toast("Preparing image…");
   try {
     await Promise.all([document.fonts.load('600 40px "Caveat"'), document.fonts.load('500 40px "Caveat"'), document.fonts.load('500 18px "Geist"')]).catch(() => {});
@@ -1712,7 +1910,7 @@ async function downloadChapter(sid){
     const blob = await new Promise(res => cv.toBlob(res, "image/png"));
     if (!blob) throw new Error("encode");
     const name = (sec.title || "chapter").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "chapter";
-    await dl.save({ filename: `${name}.png`, data: blob });
+    await saveBlob(`${name}.png`, blob);
     toast("Image saved.");
   } catch (err) {
     const code = err && err.code;

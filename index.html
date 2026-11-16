@@ -301,6 +301,20 @@ body.viewer #viewport{cursor:grab}
   .section .sec-name{font-size:calc(14px * var(--inv));padding:calc(13px * var(--inv)) calc(6px * var(--inv));margin:calc(-13px * var(--inv)) calc(-6px * var(--inv))}
 }
 
+/* ---------- Rotate: corner zones on desktop ---------- */
+.polaroid .rot{position:absolute;width:calc(26px * var(--inv));height:calc(26px * var(--inv));display:none;place-items:center;z-index:4;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab}
+.polaroid .rot svg{width:calc(15px * var(--inv));height:calc(15px * var(--inv));color:#A8A29E;opacity:0;transition:opacity .18s ease}
+.polaroid .rot.tl{left:calc(-28px * var(--inv));top:calc(-28px * var(--inv))}
+.polaroid .rot.tr{right:calc(-28px * var(--inv));top:calc(-28px * var(--inv))}
+.polaroid .rot.bl{left:calc(-28px * var(--inv));bottom:calc(-28px * var(--inv))}
+.polaroid .rot.br{right:calc(-28px * var(--inv));bottom:calc(-28px * var(--inv))}
+@media (hover:hover) and (pointer:fine){
+  .polaroid:hover .rot,.polaroid.sel .rot,.polaroid.rotating .rot{display:grid}
+  .polaroid .rot:hover svg,.polaroid.rotating .rot svg{opacity:1}
+}
+body.rotating,body.rotating *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab !important}
+body.viewer .polaroid .rot{display:none!important}
+
 /* Icon line-draw on hover: each stroke is drawn from one end to the other */
 button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
 @media (hover:hover) and (prefers-reduced-motion:no-preference){
@@ -566,7 +580,8 @@ function build(it){
   el.dataset.id = it.id;
   if (it.type === "photo") {
     el.className = "item polaroid";
-    el.innerHTML = `<div class="deco"></div><div class="ph"><img alt="" draggable="false" decoding="async"></div><div class="foot"><div class="cap" spellcheck="false"></div></div><div class="handle"></div>`;
+    const rotIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg>';
+    el.innerHTML = ["tl","tr","bl","br"].map(c => `<div class="rot ${c}" aria-hidden="true">${rotIcon}</div>`).join("") + `<div class="deco"></div><div class="ph"><img alt="" draggable="false" decoding="async"></div><div class="foot"><div class="cap" spellcheck="false"></div></div><div class="handle"></div>`;
     const img = el.querySelector("img");
     img.addEventListener("error", () => { if (img.getAttribute("src")) el.classList.add("broken"); });
     img.addEventListener("load", () => el.classList.remove("broken"));
@@ -1088,6 +1103,25 @@ function startPinch(){
   gesture = { kind:"pinch", d0: Math.hypot(a.x-b.x, a.y-b.y) || 1, m0: { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }, s0: cam.s, x0: cam.x, y0: cam.y };
   ctxEl.classList.add("hide");
 }
+function snapRot(r){
+  r = ((r + 180) % 360 + 360) % 360 - 180;
+  if (Math.abs(r) < 1.5) r = 0;
+  return Math.round(r * 10) / 10;
+}
+function startTwist(){
+  const [a, b] = [...touches.values()];
+  const id = gesture.hitId;
+  commitMove();
+  const it = items.get(id); if (!it) { gesture = null; return; }
+  busy.add(id);
+  gesture = { kind:"twist", id, a0: Math.atan2(b.y - a.y, b.x - a.x), r0: it.rot || 0, moved:false };
+  ctxEl.classList.add("hide");
+}
+function updateTwist(){
+  const [a, b] = [...touches.values()], g = gesture, it = items.get(g.id); if (!it) return;
+  const d = (Math.atan2(b.y - a.y, b.x - a.x) - g.a0) * 180 / Math.PI;
+  it.rot = snapRot(g.r0 + d); g.moved = true; render(it);
+}
 function updatePinch(){
   const [a, b] = [...touches.values()];
   const g = gesture, d = Math.hypot(a.x-b.x, a.y-b.y), m = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
@@ -1106,7 +1140,7 @@ vp.addEventListener("pointerdown", e => {
     // pointerup can never make a one-finger drag look like a pinch.
     if (e.isPrimary) touches.clear();
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (touches.size === 2) { startPinch(); return; }
+    if (touches.size === 2) { if (gesture && gesture.kind === "move" && gesture.twistable) startTwist(); else startPinch(); return; }
     if (touches.size > 2) return;
   }
   if (e.button === 2) return;
@@ -1130,6 +1164,16 @@ vp.addEventListener("pointerdown", e => {
   if (tool === "pen") { startPen(w); return; }
   if (tool === "section") { gesture = { kind:"draw", start:w, item:null }; return; }
 
+  const rotZone = e.target.closest(".rot");
+  if (itemEl && rotZone) {
+    const id = itemEl.dataset.id, it = items.get(id);
+    if (!selected.has(id)) select([id]);
+    const b = itemEl.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+    gesture = { kind:"rotate", id, cx, cy, a0: Math.atan2(e.clientY - cy, e.clientX - cx), r0: it.rot || 0, moved:false };
+    busy.add(id); itemEl.classList.add("rotating"); document.body.classList.add("rotating");
+    ctxEl.classList.add("hide");
+    return;
+  }
   if (itemEl && handle && selected.has(itemEl.dataset.id)) {
     const id = itemEl.dataset.id, it = items.get(id);
     busy.add(id);
@@ -1139,6 +1183,7 @@ vp.addEventListener("pointerdown", e => {
   }
   if (itemEl) {
     const id = itemEl.dataset.id;
+    const wasSelected = selected.has(id) && selected.size === 1;
     if (e.shiftKey) {
       const s = new Set(selected);
       if (s.has(id)) { s.delete(id); select(s); return; }
@@ -1148,7 +1193,8 @@ vp.addEventListener("pointerdown", e => {
     for (const sid of selected) if (items.get(sid)?.type === "section") childrenOf(sid).forEach(c => ids.add(c));
     const starts = new Map();
     ids.forEach(i => { const it = items.get(i); if (it) starts.set(i, { x: it.x, y: it.y }); });
-    gesture = { kind:"move", start:w, sx:e.clientX, sy:e.clientY, starts, moved:false, hitId:id, shift:e.shiftKey };
+    gesture = { kind:"move", start:w, sx:e.clientX, sy:e.clientY, starts, moved:false, hitId:id, shift:e.shiftKey,
+      twistable: e.pointerType === "touch" && wasSelected && items.get(id)?.type === "photo" };
     return;
   }
   gesture = { kind:"marquee", start:w, sx:e.clientX, sy:e.clientY, base: e.shiftKey ? new Set(selected) : new Set() };
@@ -1159,6 +1205,7 @@ addEventListener("pointermove", e => {
   if (touches.has(e.pointerId)) {
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (gesture && gesture.kind === "pinch") { if (touches.size >= 2) updatePinch(); return; }
+    if (gesture && gesture.kind === "twist") { if (touches.size >= 2) updateTwist(); return; }
   }
   if (!gesture) return;
   const g = gesture;
@@ -1168,6 +1215,13 @@ addEventListener("pointermove", e => {
   }
   const w = toWorld(e.clientX, e.clientY);
   if (g.kind === "pen") { extendPen(w); return; }
+  if (g.kind === "rotate") {
+    const it = items.get(g.id); if (!it) return;
+    const d = (Math.atan2(e.clientY - g.cy, e.clientX - g.cx) - g.a0) * 180 / Math.PI;
+    let rot = g.r0 + d;
+    if (e.shiftKey) rot = Math.round(rot / 15) * 15;
+    it.rot = snapRot(rot); g.moved = true; render(it); return;
+  }
   if (g.kind === "move") {
     if (!g.moved) {
       if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < 3) return;
@@ -1219,6 +1273,14 @@ function commitMove(){
 }
 function endPointer(e){
   const wasTouch = touches.delete(e.pointerId);
+  if (wasTouch && gesture && gesture.kind === "twist") {
+    if (touches.size < 2) {
+      const g = gesture; gesture = null;
+      busy.delete(g.id); if (g.moved) persist(items.get(g.id));
+      positionCtx();
+    }
+    return;
+  }
   if (wasTouch && gesture && gesture.kind === "pinch") {
     if (touches.size === 1) {
       // One finger left after a pinch: keep panning with it instead of freezing.
@@ -1250,6 +1312,11 @@ function endPointer(e){
     }
   }
   else if (g.kind === "pen") finishPen(g);
+  else if (g.kind === "rotate") {
+    busy.delete(g.id); document.body.classList.remove("rotating");
+    const el = els.get(g.id); if (el) el.classList.remove("rotating");
+    if (g.moved) persist(items.get(g.id));
+  }
   else if (g.kind === "move") {
     commitMove();
     if (!g.moved && !g.shift && selected.size > 1 && !items.get(g.hitId)?.type?.includes("section")) select([g.hitId]);
@@ -1286,7 +1353,27 @@ vp.addEventListener("wheel", e => {
     camReady = true; cam.x -= dx; cam.y -= dy; applyCam();
   }
 }, { passive: false });
-["gesturestart", "gesturechange"].forEach(t => document.addEventListener(t, e => e.preventDefault()));
+// Safari reports trackpad pinch/rotate as gesture events (Chrome sends ctrl+wheel for pinch and no rotate).
+let trackGesture = null;
+document.addEventListener("gesturestart", e => {
+  e.preventDefault();
+  if (touches.size) return; // touchscreens are handled by pointer events
+  const id = selected.size === 1 ? [...selected][0] : null, it = id && items.get(id);
+  trackGesture = { s0: cam.s, x: e.clientX, y: e.clientY, id: it && it.type === "photo" && !readOnly() ? id : null, r0: it ? (it.rot || 0) : 0 };
+  if (trackGesture.id) busy.add(trackGesture.id);
+});
+document.addEventListener("gesturechange", e => {
+  e.preventDefault();
+  const g = trackGesture; if (!g) return;
+  if (g.id && Math.abs(e.rotation) > 2) {
+    const it = items.get(g.id); if (it) { it.rot = snapRot(g.r0 + e.rotation); g.rotated = true; render(it); }
+  } else if (!g.rotated) zoomAt(g.x, g.y, g.s0 * e.scale);
+});
+document.addEventListener("gestureend", e => {
+  e.preventDefault();
+  const g = trackGesture; trackGesture = null; if (!g) return;
+  if (g.id) { busy.delete(g.id); if (g.rotated) persist(items.get(g.id)); positionCtx(); }
+});
 
 /* ---------------- context toolbar ---------------- */
 const ICON = {

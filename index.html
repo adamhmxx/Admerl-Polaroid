@@ -783,7 +783,6 @@ function offerMigration(){
   toast(`${what} from this device aren’t on the online board yet.`, { action: "Upload", duration: 30000, onAction: () => migrateItems(list) });
 }
 async function migrateItems(list){
-  toast(`Uploading ${list.length} item${list.length === 1 ? "" : "s"}…`, { duration: 120000 });
   const done = new Set();
   for (const raw of list) {
     const it = { ...raw };
@@ -803,7 +802,7 @@ async function migrateItems(list){
   lsSet("pw-items", JSON.stringify(rest));
   refreshMeta();
   const failed = list.length - done.size;
-  toast(failed ? `Uploaded ${done.size}. ${failed} couldn’t be uploaded; they’re still on this device.` : `Uploaded ${done.size} item${done.size === 1 ? "" : "s"} to the online board.`, { duration: 6000 });
+  if (failed) toast(`${failed} item${failed === 1 ? "" : "s"} couldn’t be uploaded; they’re still on this device.`, { duration: 6000 });
 }
 async function supaFetchAll(){
   const rows = [];
@@ -890,7 +889,7 @@ function applyRole(){
 $("#authBtn").addEventListener("click", async e => {
   e.stopPropagation();
   if (!sb) return;
-  if (authUser) { await sb.auth.signOut(); toast("Signed out. You’re viewing the board."); return; }
+  if (authUser) { await sb.auth.signOut(); return; }
   const pop = $("#authPop"); pop.hidden = !pop.hidden;
   if (!pop.hidden) { $("#authMsg").textContent = ""; setTimeout(() => $("#authEmail").focus(), 0); }
 });
@@ -999,7 +998,6 @@ function addFiles(fileList, at){
     const col = i % cols, row = Math.floor(i / cols);
     addPhoto(f, c.x - totalW/2 + col * (W + gap) + (Math.random()*16-8), c.y - 165 + row * (W * 1.3 + gap) + (Math.random()*16-8));
   });
-  if (files.length > 1) toast(`Uploading ${files.length} photos…`);
 }
 
 /* ---------------- editing text ---------------- */
@@ -1466,24 +1464,28 @@ function deleteSelected(){
   if (!removed.length) return;
   removed.forEach(it => { items.delete(it.id); removeEl(it.id); persistDelete(it.id); });
   select([]); refreshMeta();
-  let undone = false;
-  const label = removed.length === 1 ? ({ photo:"Photo", note:"Note", section:"Chapter" })[removed[0].type] + " deleted" : `${removed.length} items deleted`;
-  toast(label, {
-    action: "Undo",
-    duration: 7000,
-    onAction: () => { undone = true; removed.forEach(it => { items.set(it.id, it); render(it); persist(it); }); select(removed.map(r => r.id)); refreshMeta(); },
-    onExpire: () => {
-      if (undone) return;
-      if (mode === "db" && assets) {
-        const still = new Set([...items.values()].map(i => i.assetId).filter(Boolean));
-        removed.forEach(it => { if (it.assetId && !still.has(it.assetId)) assets.delete(it.assetId).catch(() => {}); });
-      } else if (mode === "supa" && canEdit) {
-        const still = new Set([...items.values()].map(i => i.storagePath).filter(Boolean));
-        const gone = removed.map(it => it.storagePath).filter(p => p && !still.has(p));
-        if (gone.length) sb.storage.from(SUPA.bucket).remove(gone).catch(() => {});
-      }
-    }
-  });
+  // No notice on success. ⌘/Ctrl+Z restores the last delete; photo files are only removed after 30 s.
+  if (lastDelete) { clearTimeout(lastDelete.timer); purgeRemoved(lastDelete.removed); }
+  lastDelete = { removed, timer: setTimeout(() => { purgeRemoved(removed); lastDelete = null; }, 30000) };
+}
+let lastDelete = null;
+function undoDelete(){
+  if (!lastDelete) return false;
+  clearTimeout(lastDelete.timer);
+  const { removed } = lastDelete; lastDelete = null;
+  removed.forEach(it => { items.set(it.id, it); render(it); persist(it); });
+  select(removed.map(r => r.id)); refreshMeta();
+  return true;
+}
+function purgeRemoved(removed){
+  if (mode === "db" && assets) {
+    const still = new Set([...items.values()].map(i => i.assetId).filter(Boolean));
+    removed.forEach(it => { if (it.assetId && !still.has(it.assetId)) assets.delete(it.assetId).catch(() => {}); });
+  } else if (mode === "supa" && canEdit) {
+    const still = new Set([...items.values()].map(i => i.storagePath).filter(Boolean));
+    const gone = removed.map(it => it.storagePath).filter(p => p && !still.has(p));
+    if (gone.length) sb.storage.from(SUPA.bucket).remove(gone).catch(() => {});
+  }
 }
 function duplicateSelected(){
   const src = [...selected].map(id => items.get(id)).filter(Boolean);
@@ -1604,6 +1606,7 @@ addEventListener("keydown", e => {
   }
   if (mod && e.key.toLowerCase() === "a") { e.preventDefault(); select([...items.keys()]); return; }
   if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateSelected(); return; }
+  if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) { if (undoDelete()) e.preventDefault(); return; }
   if (mod) return;
   if (e.shiftKey && (e.key === "!" || e.code === "Digit1")) { e.preventDefault(); fitAll(); return; }
   switch (e.key.toLowerCase()) {
@@ -1843,7 +1846,6 @@ async function downloadChapter(sid){
     a.href = URL.createObjectURL(data); a.download = filename; document.body.append(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   };
-  toast("Preparing image…");
   try {
     await Promise.all([document.fonts.load('600 40px "Caveat"'), document.fonts.load('500 40px "Caveat"'), document.fonts.load('500 18px "Geist"')]).catch(() => {});
     const kids = childrenOf(sid).map(id => items.get(id)).filter(Boolean).sort((a, b) => (a.z || 0) - (b.z || 0));
@@ -1912,7 +1914,6 @@ async function downloadChapter(sid){
     if (!blob) throw new Error("encode");
     const name = (sec.title || "chapter").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "chapter";
     await saveBlob(`${name}.png`, blob);
-    toast("Image saved.");
   } catch (err) {
     const code = err && err.code;
     if (code === "declined") return;

@@ -28,7 +28,8 @@
 }
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{height:100%}
+html,body{height:100%;touch-action:none;overscroll-behavior:none}
+.popover,.ddmenu{touch-action:pan-y}
 body{background:var(--canvas);color:var(--ink);font-family:var(--font);font-size:14px;overflow:hidden;-webkit-font-smoothing:antialiased}
 button,input{font:inherit;color:inherit;letter-spacing:inherit}
 body{letter-spacing:-.01em;font-variant-numeric:tabular-nums}
@@ -102,7 +103,10 @@ button{cursor:pointer}
 .logo-wrap{display:flex;flex-direction:column;gap:2px;pointer-events:none}
 .logo{margin:0;font-family:"Caveat","Bradley Hand","Segoe Print",cursive;font-weight:600;font-size:34px;line-height:1;color:var(--ink);letter-spacing:-.01em;transform:rotate(-2deg);transform-origin:0 50%;padding:2px 4px 0}
 .status{font-size:12px;color:var(--muted);padding-left:6px;display:none;align-items:center;gap:6px}
-.status[data-s="error"],.status[data-s="readonly"]{display:inline-flex}
+.status[data-s="error"],.status[data-s="readonly"],.status[data-s="local"],.status[data-s="slow"]{display:inline-flex}
+.status[data-s="local"],.status[data-s="slow"],.status[data-s="error"],.status[data-s="readonly"]{pointer-events:auto;cursor:pointer;margin-top:6px;padding:4px 10px 4px 8px;border-radius:999px;font-size:12px;font-weight:500;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A}
+.status[data-s="error"]{background:#FEF2F2;color:#991B1B;border-color:#FECACA}
+.status[data-s="local"] i,.status[data-s="slow"] i{background:var(--warn)}
 .status i{width:6px;height:6px;border-radius:50%;background:#A8A29E;display:inline-block}
 .status[data-s="saved"] i{background:var(--ok)}
 .status[data-s="saving"] i{background:var(--warn)}
@@ -594,8 +598,8 @@ function refreshMeta(){
   if (mode === "loading") { empty.hidden = false; return; }
   empty.hidden = items.size > 0;
   if (items.size === 0) {
-    $("#emptyTitle").textContent = "Your board is empty";
-    $("#emptyText").textContent = "Add photos to get started.";
+    $("#emptyTitle").textContent = mode === "local" && inViewer ? "Not connected to your online board" : "Your board is empty";
+    $("#emptyText").textContent = mode === "local" && inViewer ? "Open this board at claude.ai in a browser where you’re signed in to see and save your photos." : "Add photos to get started.";
     $("#emptyActions").hidden = !canAddPhotos() && mode === "db";
   }
 }
@@ -605,9 +609,17 @@ const queues = new Map();
 let pending = 0, writeDenied = false;
 function setStatus(s, text){
   $("#status").dataset.s = s;
-  $("#statusText").textContent = text || ({ saved:"Saved", saving:"Saving…", local:"This browser only", error:"Couldn’t save", loading:"Loading…", readonly:"View only" })[s];
+  $("#statusText").textContent = text || ({ saved:"Saved", saving:"Saving…", local:"Not syncing · this device only", slow:"Connecting…", error:"Couldn’t save · retrying", loading:"Loading…", readonly:"View only" })[s];
 }
-function enqueue(id, fn){
+let localReason = "";
+$("#status").addEventListener("click", () => {
+  const st = $("#status").dataset.s;
+  if (st === "local") toast(localReason || "Online saving isn’t available here, so photos stay on this device. Open this board at claude.ai in a browser where you’re signed in to save and see them everywhere.", { duration: 9000 });
+  else if (st === "error") toast("Some changes haven’t reached the online board yet. They’ll retry automatically while this page is open.", { duration: 7000 });
+  else if (st === "readonly") toast("You can view this board but not change it.", { duration: 5000 });
+  else if (st === "slow") toast("Still connecting to the online board…", { duration: 4000 });
+});
+function enqueue(id, fn, attempt = 0){
   pending++; setStatus("saving");
   const p = (queues.get(id) || Promise.resolve()).then(fn).catch(err => {
     console.warn("write failed", err);
@@ -616,7 +628,9 @@ function enqueue(id, fn){
       if (!writeDenied) { writeDenied = true; toast("You have view-only access. Changes won’t be saved."); }
       setStatus("readonly");
     } else {
-      setStatus("error"); toast("Couldn’t save. Check your connection and try again.");
+      setStatus("error");
+      if (attempt < 6) setTimeout(() => enqueue(id, fn, attempt + 1), Math.min(30000, 2000 * 2 ** attempt));
+      else toast("Couldn’t save some changes. Check your connection and reload.");
     }
   }).finally(() => {
     pending--;
@@ -655,13 +669,16 @@ function restoreCam(){
   } catch {}
   return false;
 }
-function startLocal(){
+let inViewer = false;
+function startLocal(reason){
   if (mode !== "loading") return;
   mode = "local";
+  localReason = reason || "";
   setStatus("local");
   let arr = null;
   try { arr = JSON.parse(lsGet("pw-items") || "null"); } catch {}
-  if (!Array.isArray(arr)) arr = SAMPLE.map(x => ({ ...x }));
+  // Inside claude.ai, never show made-up examples: an empty board is honest.
+  if (!Array.isArray(arr)) arr = inViewer ? [] : SAMPLE.map(x => ({ ...x }));
   arr.forEach(it => { items.set(it.id, it); render(it); });
   refreshMeta();
   requestAnimationFrame(() => { if (!restoreCam()) fitAll(); });
@@ -669,16 +686,19 @@ function startLocal(){
 async function init(){
   applyCam();
   refreshMeta();
-  const c = window.claude;
-  if (!c || typeof c.use !== "function") { startLocal(); return; }
-  let slowT = setTimeout(() => setStatus("loading", "Slow connection…"), 10000);
+  // The viewer can attach window.claude a moment after the page starts; give it time.
+  let c = window.claude;
+  for (let i = 0; i < 30 && !(c && typeof c.use === "function"); i++) { await new Promise(r => setTimeout(r, 100)); c = window.claude; }
+  if (!c || typeof c.use !== "function") { startLocal("This copy of the board isn’t running inside claude.ai, so photos are saved in this browser only."); return; }
+  inViewer = true;
+  let slowT = setTimeout(() => setStatus("slow"), 6000);
   let dbNs = null;
   try { [dbNs, assets] = await Promise.all([c.use("db"), c.use("assets").catch(() => null)]); } catch { dbNs = null; }
-  if (!dbNs) { clearTimeout(slowT); startLocal(); return; }
+  if (!dbNs) { clearTimeout(slowT); startLocal("Online saving isn’t available in this view (for example when you’re signed out, or in an app that doesn’t support it). Photos added here stay on this device. Open the board at claude.ai in a browser where you’re signed in to save them online."); return; }
   db = dbNs;
   db.collection("items").onSnapshot(snap => {
     clearTimeout(slowT);
-    if (mode === "loading") { mode = "db"; setStatus(assets ? "saved" : "readonly"); updateAddAvailability(); }
+    if (mode === "loading") { mode = "db"; setStatus(assets ? "saved" : "readonly"); updateAddAvailability(); setTimeout(offerMigration, 800); }
     for (const ch of snap.docChanges()) {
       const id = ch.doc.id;
       if (busy.has(id)) continue;
@@ -693,9 +713,50 @@ async function init(){
   }, err => {
     clearTimeout(slowT);
     console.warn(err);
-    if (mode === "loading") { startLocal(); toast("Couldn’t load the online board. Changes are saved in this browser only."); }
+    if (mode === "loading") startLocal("The online board couldn’t be loaded, so changes are saved on this device only. Reload the page to try again.");
     else setStatus("error", "Disconnected");
   });
+}
+function dataUrlToBlob(u){
+  const [head, b64] = u.split(","); const mime = (head.match(/data:([^;]+)/) || [])[1] || "image/jpeg";
+  const bin = atob(b64); const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+function deviceOnlyItems(){
+  let arr = null; try { arr = JSON.parse(lsGet("pw-items") || "null"); } catch {}
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(it => it && it.id && !String(it.id).startsWith("ex-") && !items.has(it.id));
+}
+function offerMigration(){
+  if (mode !== "db" || !assets) return;
+  const list = deviceOnlyItems(); if (!list.length) return;
+  const n = list.filter(i => i.type === "photo").length;
+  const what = n ? `${n} photo${n === 1 ? "" : "s"}` : `${list.length} item${list.length === 1 ? "" : "s"}`;
+  toast(`${what} from this device aren’t on the online board yet.`, { action: "Upload", duration: 30000, onAction: () => migrateItems(list) });
+}
+async function migrateItems(list){
+  toast(`Uploading ${list.length} item${list.length === 1 ? "" : "s"}…`, { duration: 120000 });
+  const done = new Set();
+  for (const raw of list) {
+    const it = { ...raw };
+    try {
+      if (it.type === "photo") {
+        if (it.src && it.src.startsWith("data:")) {
+          const r = await assets.upload(dataUrlToBlob(it.src));
+          it.assetId = r.id; it._url = r.url; delete it.src;
+        } else if (!it.assetId) continue;
+      }
+      it.z = ++maxZ;
+      await db.collection("items").doc(it.id).set(clean(it));
+      items.set(it.id, it); render(it); done.add(it.id);
+    } catch (e) { console.warn("migrate", e); }
+  }
+  let rest = []; try { rest = (JSON.parse(lsGet("pw-items") || "[]") || []).filter(x => !done.has(x.id)); } catch {}
+  lsSet("pw-items", JSON.stringify(rest));
+  refreshMeta();
+  const failed = list.length - done.size;
+  toast(failed ? `Uploaded ${done.size}. ${failed} couldn’t be uploaded; they’re still on this device.` : `Uploaded ${done.size} item${done.size === 1 ? "" : "s"} to the online board.`, { duration: 6000 });
 }
 function updateAddAvailability(){
   const ok = canAddPhotos();
@@ -843,6 +904,8 @@ function startPinch(){
   if (gesture && gesture.kind === "move") commitMove();
   if (gesture && gesture.kind === "draw" && gesture.item) { items.delete(gesture.item.id); removeEl(gesture.item.id); }
   if (gesture && gesture.kind === "pen" && gesture.live) gesture.live.remove();
+  if (gesture && gesture.kind === "resize") busy.delete(gesture.id);
+  vp.classList.remove("panning");
   gesture = { kind:"pinch", d0: Math.hypot(a.x-b.x, a.y-b.y) || 1, m0: { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }, s0: cam.s, x0: cam.x, y0: cam.y };
   ctxEl.classList.add("hide");
 }
@@ -860,6 +923,9 @@ vp.addEventListener("pointerdown", e => {
   if (isEditable(document.activeElement)) document.activeElement.blur();
   closePops();
   if (e.pointerType === "touch") {
+    // The first finger of a new touch always starts from a clean slate, so a lost
+    // pointerup can never make a one-finger drag look like a pinch.
+    if (e.isPrimary) touches.clear();
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size === 2) { startPinch(); return; }
     if (touches.size > 2) return;
@@ -967,6 +1033,15 @@ function commitMove(){
   else if (g) for (const id of g.starts.keys()) busy.delete(id);
 }
 function endPointer(e){
+  const wasTouch = touches.delete(e.pointerId);
+  if (wasTouch && gesture && gesture.kind === "pinch") {
+    if (touches.size === 1) {
+      // One finger left after a pinch: keep panning with it instead of freezing.
+      const [t] = [...touches.values()];
+      gesture = { kind:"pan", sx:t.x, sy:t.y, cx:cam.x, cy:cam.y, touch:true, moved:true };
+    } else if (touches.size === 0) { gesture = null; positionCtx(); }
+    return;
+  }
   if (e.type === "pointerup" && e.pointerType === "touch" && gesture && gesture.kind === "move" && !gesture.moved) {
     const now = Date.now();
     if (now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 24 && lastTap.target === gesture.hitId) {
@@ -977,10 +1052,6 @@ function endPointer(e){
       return;
     }
     lastTap = { t: now, x: e.clientX, y: e.clientY, target: gesture.hitId };
-  }
-  if (touches.has(e.pointerId)) {
-    touches.delete(e.pointerId);
-    if (gesture && gesture.kind === "pinch") { if (touches.size < 2) { gesture = null; positionCtx(); } return; }
   }
   if (!gesture) return;
   const g = gesture; gesture = null;

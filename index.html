@@ -279,6 +279,28 @@ body.viewer .toolbar{display:none}
 body.viewer .handle{display:none!important}
 body.viewer #viewport{cursor:grab}
 
+/* ---------- Phones & touch: every tap target at least 40px tall, text at least 14px ---------- */
+@media (max-width:640px), (hover:none) and (pointer:coarse){
+  .zbtn,#zoomPct{height:40px;min-width:40px;font-size:14px}
+  .pill-btn{height:52px;font-size:14px}
+  .pill-btn .count{font-size:14px}
+  .cbtn,.swatch{height:40px;min-width:40px;font-size:14px}
+  .dditem{min-height:44px;font-size:14px}
+  .dditem .rt{font-size:14px}
+  .sec-row{min-height:44px;font-size:14px}
+  .sec-row .n,.popover .empty{font-size:14px}
+  .toast{font-size:14px}
+  .toast button{min-height:40px;padding:0 14px;font-size:14px}
+  .status[data-s="local"],.status[data-s="slow"],.status[data-s="error"],.status[data-s="readonly"]{min-height:40px;font-size:14px;padding:0 14px 0 12px}
+  .auth-btn{min-height:40px;font-size:14px}
+  .auth-pop label,.auth-pop p{font-size:14px}
+  .ctx{flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100vw - 24px)}
+  .ctx .dd > .cbtn > span{display:none}
+  .ctx .label,.empty-card p,.drop span,.lb .lb-count,.show-bar .show-count{font-size:14px}
+  /* Chapter titles: 14px text, with an invisible 40px-tall tap area around it. */
+  .section .sec-name{font-size:calc(14px * var(--inv));padding:calc(13px * var(--inv)) calc(6px * var(--inv));margin:calc(-13px * var(--inv)) calc(-6px * var(--inv))}
+}
+
 /* Icon line-draw on hover: each stroke is drawn from one end to the other */
 button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
 @media (hover:hover) and (prefers-reduced-motion:no-preference){

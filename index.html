@@ -452,7 +452,8 @@ const SAMPLE = [
 ];
 
 /* ---------------- online backend (Supabase, used outside claude.ai) ---------------- */
-const SUPA = { url: "https://wtiqrzcnbhtvbmdcymqe.supabase.co", key: "sb_publishable_Y3o4IvEfav97Mz8GTxOdlw_iaHyd5t0", bucket: "photos" };
+// open: true = anyone with the link can edit (no sign-in). Set to false to require editor sign-in again.
+const SUPA = { url: "https://wtiqrzcnbhtvbmdcymqe.supabase.co", key: "sb_publishable_Y3o4IvEfav97Mz8GTxOdlw_iaHyd5t0", bucket: "photos", open: true };
 let sb = null, authUser = null, canEdit = true;
 const readOnly = () => mode === "supa" && !canEdit;
 const supaPhotoUrl = path => `${SUPA.url}/storage/v1/object/public/${SUPA.bucket}/${encodeURIComponent(path)}`;
@@ -832,10 +833,10 @@ async function supaResync(){
 }
 async function initSupabase(){
   sb = window.supabase.createClient(SUPA.url, SUPA.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-  canEdit = false;
+  canEdit = SUPA.open;
   const slowT = setTimeout(() => setStatus("slow"), 6000);
   try {
-    await refreshAuth();
+    if (!SUPA.open) await refreshAuth();
     const rows = await supaFetchAll();
     clearTimeout(slowT);
     mode = "supa";
@@ -850,7 +851,7 @@ async function initSupabase(){
     toast("Couldn’t load the board. Check your connection.", { action: "Retry", duration: 15000, onAction: () => location.reload() });
     return;
   }
-  sb.auth.onAuthStateChange((_evt, session) => { refreshAuth(session); });
+  if (!SUPA.open) sb.auth.onAuthStateChange((_evt, session) => { refreshAuth(session); });
   let subscribedOnce = false;
   sb.channel("board-items")
     .on("postgres_changes", { event: "*", schema: "public", table: "items" }, p => {
@@ -881,7 +882,7 @@ async function refreshAuth(session){
 }
 function applyRole(){
   document.body.classList.toggle("viewer", readOnly());
-  $("#auth").hidden = mode !== "supa";
+  $("#auth").hidden = mode !== "supa" || SUPA.open;
   $("#authBtn").textContent = authUser ? (canEdit ? "Sign out" : "Sign out · view only") : "Sign in to edit";
   if (readOnly()) { setTool("select"); if (gesture && gesture.kind !== "pan") gesture = null; }
   updateAddAvailability(); refreshMeta(); buildCtx();

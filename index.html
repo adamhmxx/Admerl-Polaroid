@@ -44,6 +44,11 @@ button{cursor:pointer}
 #viewport.panning,#viewport.panning *{cursor:grabbing!important}
 #viewport.tool-note,#viewport.tool-section{cursor:crosshair}
 #world{position:absolute;left:0;top:0;transform-origin:0 0;--inv:1}
+/* Other people's pointers, no names: just a colored arrow. */
+#cursors{position:absolute;left:0;top:0;pointer-events:none;z-index:2147483000}
+.cursor{position:absolute;left:0;top:0;width:22px;height:22px;transform-origin:0 0;transition:transform .09s linear,opacity .2s ease;will-change:transform}
+.cursor svg{display:block;width:22px;height:22px;filter:drop-shadow(0 1px 1.5px rgba(28,25,23,.25))}
+.cursor.off{opacity:0}
 #layer-sections,#layer-items{position:absolute;left:0;top:0}
 
 /* ---------- Polaroid ---------- */
@@ -351,6 +356,7 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
     <div id="layer-sections"></div>
     <div id="layer-items"></div>
     <div id="marquee" hidden></div>
+    <div id="cursors" aria-hidden="true"></div>
   </div>
 </div>
 
@@ -907,6 +913,67 @@ async function supaResync(){
     if ($("#status").dataset.s === "slow") setStatus("saved");
   } catch (e) { console.warn("resync", e); }
 }
+/* ---------------- live: cursors + in-progress edits ---------------- */
+const CID = Math.random().toString(36).slice(2, 10);
+const CURSOR_COLORS = ["#E5484D", "#3E63DD", "#30A46C", "#F76B15", "#8E4EC6", "#0090FF", "#D6409F"];
+let live = null, liveReady = false;
+const cursors = new Map();
+function cursorColor(cid){ let h = 0; for (const ch of cid) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CURSOR_COLORS[h % CURSOR_COLORS.length]; }
+function showCursor(p){
+  if (!p || !p.cid || p.cid === CID) return;
+  let c = cursors.get(p.cid);
+  if (!c) {
+    const el = document.createElement("div"); el.className = "cursor off";
+    el.innerHTML = `<svg viewBox="0 0 22 22"><path d="M4 2.5v15.2l4.3-4.1 2.9 6.6 2.7-1.2-2.9-6.5h6z" fill="${cursorColor(p.cid)}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+    $("#cursors").appendChild(el);
+    c = { el }; cursors.set(p.cid, c);
+  }
+  clearTimeout(c.t);
+  if (p.h) { c.el.classList.add("off"); return; }
+  c.el.style.transform = `translate(${p.x}px,${p.y}px) scale(var(--inv))`;
+  c.el.classList.remove("off");
+  c.t = setTimeout(() => c.el.classList.add("off"), 120000);
+}
+function dropCursor(cid){ const c = cursors.get(cid); if (c) { clearTimeout(c.t); c.el.remove(); cursors.delete(cid); } }
+function liveSend(event, payload){ if (liveReady) live.send({ type: "broadcast", event, payload }).catch(() => {}); }
+let curT = 0, curNext = null, curTimer = null;
+function sendCursor(p){
+  curNext = { cid: CID, ...p };
+  const wait = 40 - (Date.now() - curT);
+  if (wait <= 0) { curT = Date.now(); liveSend("cur", curNext); curNext = null; }
+  else if (!curTimer) curTimer = setTimeout(() => { curTimer = null; if (curNext) { curT = Date.now(); liveSend("cur", curNext); curNext = null; } }, wait);
+}
+const liveQueue = new Map(); let liveTimer = null;
+function liveItem(it){
+  if (!liveReady || !it || it._draft || it._uploading) return;
+  liveQueue.set(it.id, it);
+  if (!liveTimer) liveTimer = setTimeout(() => {
+    liveTimer = null;
+    const its = [...liveQueue.values()].map(x => ({ id: x.id, ...clean(x) })); liveQueue.clear();
+    liveSend("items", { its });
+  }, 50);
+}
+function startLive(){
+  live = sb.channel("board-live", { config: { broadcast: { self: false }, presence: { key: CID } } });
+  live
+    .on("broadcast", { event: "cur" }, ({ payload }) => showCursor(payload))
+    .on("broadcast", { event: "items" }, ({ payload }) => {
+      for (const raw of (payload && payload.its) || []) {
+        if (!raw || !raw.id || busy.has(raw.id)) continue;
+        const it = { ...raw }; items.set(it.id, it); render(it);
+      }
+      positionCtx();
+    })
+    .on("presence", { event: "leave" }, ({ key }) => dropCursor(key))
+    .subscribe(async st => {
+      liveReady = st === "SUBSCRIBED";
+      if (liveReady) { try { await live.track({ at: Date.now() }); } catch {} }
+    });
+  vp.addEventListener("pointermove", e => { const w = toWorld(e.clientX, e.clientY); sendCursor({ x: Math.round(w.x), y: Math.round(w.y) }); });
+  vp.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") sendCursor({ h: 1 }); });
+  addEventListener("pointerup", e => { if (e.pointerType === "touch") setTimeout(() => sendCursor({ h: 1 }), 1500); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") sendCursor({ h: 1 }); });
+}
 async function initSupabase(){
   sb = window.supabase.createClient(SUPA.url, SUPA.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   canEdit = SUPA.open;
@@ -942,6 +1009,7 @@ async function initSupabase(){
       if (status === "SUBSCRIBED") { if (subscribedOnce) supaResync(); subscribedOnce = true; }
       else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setStatus("slow");
     });
+  startLive();
   // Catch up on anything missed while the phone was asleep or offline.
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") supaResync(); });
   addEventListener("online", supaResync);
@@ -1165,7 +1233,7 @@ function updateTwist(){
   const min = it.type === "deco" ? (it.kind === "pin" ? 10 : 40) : 120;
   const nw = clamp(g.w0 * Math.hypot(b.x - a.x, b.y - a.y) / g.d0, min, 1600);
   it.w = Math.round(nw); it.x = Math.round(g.cx - nw / 2); it.y = Math.round(g.cy - nw * g.ar / 2);
-  g.moved = true; render(it);
+  g.moved = true; render(it); liveItem(it);
 }
 function updatePinch(){
   const [a, b] = [...touches.values()];
@@ -1268,7 +1336,7 @@ addEventListener("pointermove", e => {
     const d = (Math.atan2(e.clientY - g.cy, e.clientX - g.cx) - g.a0) * 180 / Math.PI;
     let rot = g.r0 + d;
     if (e.shiftKey) rot = Math.round(rot / 15) * 15;
-    it.rot = snapRot(rot); g.moved = true; render(it); return;
+    it.rot = snapRot(rot); g.moved = true; render(it); liveItem(it); return;
   }
   if (g.kind === "move") {
     if (!g.moved) {
@@ -1278,7 +1346,7 @@ addEventListener("pointermove", e => {
       for (const id of selected) { const it = items.get(id); if (it && it.type !== "section" && it.z !== maxZ) it.z = ++maxZ; }
     }
     const dx = w.x - g.start.x, dy = w.y - g.start.y;
-    for (const [id, s] of g.starts) { const it = items.get(id); if (!it) continue; busy.add(id); it.x = Math.round(s.x + dx); it.y = Math.round(s.y + dy); render(it); }
+    for (const [id, s] of g.starts) { const it = items.get(id); if (!it) continue; busy.add(id); it.x = Math.round(s.x + dx); it.y = Math.round(s.y + dy); render(it); liveItem(it); }
     return;
   }
   if (g.kind === "resize") {
@@ -1304,7 +1372,7 @@ addEventListener("pointermove", e => {
       it.w = Math.round(nw);
       it.x = Math.round(cx - g.bw * k / 2); it.y = Math.round(cy - g.bh * k / 2);
     }
-    render(it); return;
+    render(it); liveItem(it); return;
   }
   if (g.kind === "draw") {
     const x = Math.min(g.start.x, w.x), y = Math.min(g.start.y, w.y);

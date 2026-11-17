@@ -77,8 +77,8 @@ button{cursor:pointer}
 .section .sec-ol rect{fill:none;stroke:transparent;stroke-width:calc(1px * var(--inv));stroke-dasharray:calc(8px * var(--inv)) calc(8px * var(--inv));stroke-linecap:round}
 .section:hover:not(.sel) .sec-ol rect,.section.draft .sec-ol rect{stroke:#A8A29E}
 .section .sec-title{position:absolute;left:0;bottom:100%;padding-bottom:calc(5px * var(--inv));transform-origin:0 100%;pointer-events:none}
-.section .sec-name{pointer-events:auto;display:inline-block;max-width:none;white-space:nowrap;font-weight:500;
-  font-size:calc(12px * var(--inv));letter-spacing:-.01em;
+.section .sec-name{pointer-events:auto;display:inline-block;max-width:none;white-space:nowrap;font-weight:600;
+  font-family:"Caveat","Bradley Hand","Segoe Print",cursive;font-size:calc(20px * var(--inv));line-height:1;letter-spacing:-.01em;
   padding:.1em .15em;border-radius:.3em;background:transparent;color:var(--ink);outline:none;cursor:default}
 .section .sec-name:empty::before{content:"Untitled";opacity:.55}
 .section.draft{opacity:.85}
@@ -298,24 +298,36 @@ body.viewer #viewport{cursor:grab}
   .ctx .dd > .cbtn > span{display:none}
   .ctx .label,.empty-card p,.drop span,.lb .lb-count,.show-bar .show-count{font-size:14px}
   /* Chapter titles: 14px text, with an invisible 40px-tall tap area around it. */
-  .section .sec-name{font-size:calc(14px * var(--inv));padding:calc(13px * var(--inv)) calc(6px * var(--inv));margin:calc(-13px * var(--inv)) calc(-6px * var(--inv))}
+  .section .sec-name{font-size:calc(22px * var(--inv));padding:calc(13px * var(--inv)) calc(6px * var(--inv));margin:calc(-13px * var(--inv)) calc(-6px * var(--inv))}
 }
 
 /* ---------- Rotate: corner zones on desktop ---------- */
-.polaroid .rot{position:absolute;width:calc(32px * var(--inv));height:calc(32px * var(--inv));display:none;place-items:center;z-index:4;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab}
-.polaroid .rot svg{width:calc(15px * var(--inv));height:calc(15px * var(--inv));color:#A8A29E;opacity:0;transition:opacity .18s ease}
+.item .rot{position:absolute;width:calc(32px * var(--inv));height:calc(32px * var(--inv));display:none;place-items:center;z-index:4;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab}
+.item .rot svg{width:calc(15px * var(--inv));height:calc(15px * var(--inv));color:#A8A29E;opacity:0;transition:opacity .18s ease}
 /* Each zone sits on its corner (a little inside the frame, mostly outside) so pointing at the corner finds it. */
-.polaroid .rot.tl{left:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
-.polaroid .rot.tr{right:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
-.polaroid .rot.bl{left:calc(-22px * var(--inv));bottom:calc(-22px * var(--inv))}
-.polaroid .rot.br{right:calc(-22px * var(--inv));bottom:calc(-22px * var(--inv))}
-.polaroid .handle{z-index:6}
+.item .rot.tl{left:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
+.item .rot.tr{right:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
+.item .rot.bl{left:calc(-22px * var(--inv));bottom:calc(-22px * var(--inv))}
+.item .rot.br{right:calc(-22px * var(--inv));bottom:calc(-22px * var(--inv))}
+.item .handle{z-index:6}
 @media (hover:hover) and (pointer:fine){
-  .polaroid:hover .rot,.polaroid.sel .rot,.polaroid.rotating .rot{display:grid}
-  .polaroid .rot:hover svg,.polaroid.rotating .rot svg{opacity:1}
+  .item:hover .rot,.item.sel .rot,.item.rotating .rot{display:grid}
+  .item .rot:hover svg,.item.rotating .rot svg{opacity:1}
 }
 body.rotating,body.rotating *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab !important}
-body.viewer .polaroid .rot{display:none!important}
+body.viewer .item .rot{display:none!important}
+
+/* ---------- Decorations: washi tape and pins, placed freely ---------- */
+.item.deco{--w:140px;width:var(--w)}
+.item.deco .deco-body{display:block}
+.item.deco.kind-tape .deco-body{width:100%;height:calc(var(--w) * .28);
+  background:repeating-linear-gradient(-45deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px),var(--c);
+  filter:drop-shadow(0 1px 1px rgba(28,25,23,.14));
+  clip-path:polygon(0 8%,3% 0,6% 10%,9% 0,12% 8%,88% 0,91% 9%,94% 0,97% 10%,100% 2%,100% 92%,97% 100%,94% 90%,91% 100%,88% 92%,12% 100%,9% 90%,6% 100%,3% 92%,0 100%)}
+.item.deco.kind-pin .deco-body{width:var(--w);height:var(--w);border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,rgba(255,255,255,.85) 0 11%,rgba(255,255,255,0) 15%),var(--c);
+  box-shadow:inset 0 calc(var(--w) * -.08) calc(var(--w) * .14) rgba(0,0,0,.28),0 calc(var(--w) * .14) calc(var(--w) * .2) rgba(28,25,23,.35)}
+.deco-menu{left:-4px;right:auto}
 
 /* Icon line-draw on hover: each stroke is drawn from one end to the other */
 button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
@@ -376,6 +388,15 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
   <button class="tbtn" data-tool="pen" aria-pressed="false" data-tip="Pen" aria-label="Pen (D)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-4.2L15.8 5.2a2 2 0 0 1 2.9 0l.1.1a2 2 0 0 1 0 2.9L8.2 18.8z"/><path d="M14 7l3 3"/></svg>
   </button>
+  <span class="dd deco-wrap">
+    <button class="tbtn" id="decoBtn" data-tip="Decorations" aria-label="Add decoration" aria-haspopup="menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5l16-3.4 1 4.8-16 3.4z"/><circle cx="17" cy="17.5" r="2.5"/></svg>
+    </button>
+    <div class="panel ddmenu add-menu deco-menu" id="decoMenu" role="menu" hidden>
+      <button class="dditem" id="addTape" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5l16-3.4 1 4.8-16 3.4z"/></svg><span class="nm">Washi tape</span></button>
+      <button class="dditem" id="addPin" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M12 12v8"/></svg><span class="nm">Pin</span></button>
+    </div>
+  </span>
   <button class="tbtn" data-tool="section" aria-pressed="false" data-tip="Chapter" aria-label="Chapter (S)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M3.5 3.5h7"/></svg>
   </button>
@@ -475,6 +496,9 @@ const FILMS = [
   { key:"mono",  label:"Mono",     css:"brightness(1.02) saturate(1) contrast(1.12) sepia(0) grayscale(1) hue-rotate(0deg)" },
   { key:"cool",  label:"Cool",     css:"brightness(1.03) saturate(.9) contrast(1.03) sepia(0) grayscale(0) hue-rotate(10deg)" }
 ];
+const TAPE_COLORS = { cream:"rgba(238,224,186,.88)", rose:"rgba(232,184,184,.85)", sage:"rgba(186,206,176,.85)", sky:"rgba(180,202,224,.85)", lilac:"rgba(206,190,220,.85)", stone:"rgba(214,211,209,.9)" };
+const PIN_COLORS = { red:"#A63A32", navy:"#2F4A6D", ochre:"#B08A3E", olive:"#4B6043", ink:"#2B2622", ivory:"#EDE6D6" };
+const decoColor = it => it.kind === "pin" ? (PIN_COLORS[it.color] || PIN_COLORS.red) : (TAPE_COLORS[it.color] || TAPE_COLORS.cream);
 const filmOf = it => (FILMS.find(f => f.key === it.filter) || FILMS[0]);
 const TAPES = ["rgba(253,235,140,.72)","rgba(251,207,226,.72)","rgba(199,220,253,.72)","rgba(231,229,228,.85)","rgba(194,239,207,.72)"];
 const hashId = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
@@ -590,6 +614,11 @@ function build(it){
   } else if (it.type === "stroke") {
     el.className = "item stroke";
     el.innerHTML = `<svg><path class="hit"/><path class="ln"/></svg>`;
+  } else if (it.type === "deco") {
+    el.className = "item deco";
+    const rotIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg>';
+    // Pins are round, so only tape gets rotate corners.
+    el.innerHTML = (it.kind === "pin" ? "" : ["tl","tr","bl","br"].map(c => `<div class="rot ${c}" aria-hidden="true">${rotIcon}</div>`).join("")) + `<div class="deco-body"></div><div class="handle"></div>`;
   } else if (it.type === "note") {
     el.className = "item note";
     el.innerHTML = `<div class="txt" spellcheck="false"></div><div class="handle"></div>`;
@@ -644,6 +673,9 @@ function render(it){
       el.querySelector(".hit").setAttribute("d", d);
       const ln = el.querySelector(".ln"); ln.setAttribute("d", d); ln.setAttribute("stroke-width", it.size || 3);
     }
+  } else if (it.type === "deco") {
+    el.className = "item deco kind-" + (it.kind === "pin" ? "pin" : "tape");
+    el.style.setProperty("--c", decoColor(it));
   } else {
     el.className = "item note"; el.style.setProperty("--pen", colorOf(it.color));
     const t = el.querySelector(".txt");
@@ -1196,7 +1228,7 @@ vp.addEventListener("pointerdown", e => {
     const starts = new Map();
     ids.forEach(i => { const it = items.get(i); if (it) starts.set(i, { x: it.x, y: it.y }); });
     gesture = { kind:"move", start:w, sx:e.clientX, sy:e.clientY, starts, moved:false, hitId:id, shift:e.shiftKey,
-      twistable: e.pointerType === "touch" && wasSelected && items.get(id)?.type === "photo" };
+      twistable: e.pointerType === "touch" && wasSelected && (items.get(id)?.type === "photo" || (items.get(id)?.type === "deco" && items.get(id)?.kind !== "pin")) };
     return;
   }
   gesture = { kind:"marquee", start:w, sx:e.clientX, sy:e.clientY, base: e.shiftKey ? new Set(selected) : new Set() };
@@ -1240,7 +1272,10 @@ addEventListener("pointermove", e => {
     g.moved = true;
     const dx = w.x - g.start.x, dy = w.y - g.start.y;
     if (it.type === "section") { it.w = Math.round(Math.max(240, g.w0 + dx)); it.h = Math.round(Math.max(160, g.h0 + dy)); }
-    else it.w = Math.round(clamp(g.w0 + dx, 120, 1600));
+    else {
+      const min = it.type === "deco" ? (it.kind === "pin" ? 10 : 40) : 120;
+      it.w = Math.round(clamp(g.w0 + dx, min, 1600));
+    }
     render(it); return;
   }
   if (g.kind === "draw") {
@@ -1521,12 +1556,21 @@ function buildCtx(){
     const it = list[0];
     if (it.type === "photo") {
       ctxEl.append(
-        frameDropdown(it, update), filmDropdown(it, update), decoDropdown(it, update), sep(),
+        frameDropdown(it, update), filmDropdown(it, update), sep(),
         btn(ICON.view, "View", () => openLightbox(it.id)),
         btn(ICON.front, "To front", () => update(x => x.z = ++maxZ)),
         btn(ICON.trash, "Delete", deleteSelected, "cbtn danger"));
     } else if (it.type === "stroke") {
       ctxEl.append(...inkPicker(it.color, k => { penColor = k; update(x => x.color = k); }), sep(),
+        btn(ICON.trash, "Delete", deleteSelected, "cbtn danger"));
+    } else if (it.type === "deco") {
+      const pal = it.kind === "pin" ? PIN_COLORS : TAPE_COLORS;
+      const cur = pal[it.color] ? it.color : Object.keys(pal)[0];
+      ctxEl.append(...Object.entries(pal).map(([k, c]) => {
+        const b = btn(`<span style="background:${c}"></span>`, "", () => update(x => x.color = k), "swatch", cur === k);
+        b.setAttribute("aria-label", "Color " + k); delete b.dataset.tip; return b;
+      }), sep(),
+        btn(ICON.front, "To front", () => update(x => x.z = ++maxZ)),
         btn(ICON.trash, "Delete", deleteSelected, "cbtn danger"));
     } else if (it.type === "note") {
       ctxEl.append(...inkPicker(it.color, k => update(x => x.color = k)), sep(),
@@ -1629,8 +1673,24 @@ function toast(msg, opt = {}){
 /* ---------------- sections popover ---------------- */
 function closePops(){
   $("#secPop").hidden = true; $("#secBtn").setAttribute("aria-expanded", "false");
-  closeAddMenu();
+  closeAddMenu(); closeDecoMenu();
 }
+function closeDecoMenu(){ $("#decoMenu").hidden = true; $("#decoBtn").setAttribute("aria-expanded", "false"); }
+$("#decoBtn").addEventListener("click", e => {
+  e.stopPropagation();
+  const open = $("#decoMenu").hidden; closePops();
+  if (open) { $("#decoMenu").hidden = false; $("#decoBtn").setAttribute("aria-expanded", "true"); }
+});
+function addDeco(kind){
+  closeDecoMenu();
+  const c = viewCenter(), pin = kind === "pin";
+  const w = pin ? 22 : 150, h = pin ? 22 : w * .28;
+  const it = addItem({ id: uid(), type:"deco", kind, x: Math.round(c.x - w / 2), y: Math.round(c.y - h / 2), w,
+    rot: pin ? 0 : +((Math.random() * 16 - 8).toFixed(1)), color: pin ? "red" : Object.keys(TAPE_COLORS)[Math.floor(Math.random() * 4)] });
+  setTool("select"); select([it.id]);
+}
+$("#addTape").addEventListener("click", e => { e.stopPropagation(); addDeco("tape"); });
+$("#addPin").addEventListener("click", e => { e.stopPropagation(); addDeco("pin"); });
 function closeAddMenu(){ $("#addMenu").hidden = true; $("#addPhotoBtn").setAttribute("aria-expanded", "false"); }
 function toggleAddMenu(){
   const m = $("#addMenu"), open = m.hidden;
@@ -1971,7 +2031,7 @@ async function downloadChapter(sid){
     c.fillStyle = "#F5F5F4"; c.fillRect(x1, y1, W, H);
     c.fillStyle = "#D6D3D1";
     for (let gx = Math.ceil(x1 / 24) * 24; gx < x2; gx += 24) for (let gy = Math.ceil(y1 / 24) * 24; gy < y2; gy += 24) { c.beginPath(); c.arc(gx, gy, 1, 0, Math.PI * 2); c.fill(); }
-    c.fillStyle = "#1C1917"; c.font = '500 18px "Geist", sans-serif'; c.textBaseline = "alphabetic";
+    c.fillStyle = "#1C1917"; c.font = '600 26px "Caveat", cursive'; c.textBaseline = "alphabetic";
     c.fillText(sec.title || "Untitled", sec.x + 2, sec.y - 12);
     for (const it of kids) {
       const el = els.get(it.id), b = bounds(it);
@@ -1983,6 +2043,13 @@ async function downloadChapter(sid){
         c.restore(); continue;
       }
       c.translate(b.x + b.w / 2, b.y + b.h / 2); c.rotate((it.rot || 0) * Math.PI / 180); c.translate(-b.w / 2, -b.h / 2);
+      if (it.type === "deco") {
+        c.shadowColor = "rgba(28,25,23,.3)"; c.shadowBlur = 3; c.shadowOffsetY = 1.5;
+        c.fillStyle = decoColor(it);
+        if (it.kind === "pin") { c.beginPath(); c.arc(b.w / 2, b.w / 2, b.w / 2, 0, Math.PI * 2); c.fill(); }
+        else c.fillRect(0, 0, b.w, b.w * .28);
+        c.restore(); continue;
+      }
       if (it.type === "note") {
         c.fillStyle = colorOf(it.color);
         const fs = it.w * .13; c.font = `600 ${fs}px "Caveat", cursive`; c.textBaseline = "top";

@@ -88,11 +88,14 @@ button{cursor:pointer}
 .polaroid.sel{outline:none;box-shadow:0 1px 1px rgba(28,25,23,.06),0 3px 8px rgba(28,25,23,.08),0 16px 30px -14px rgba(28,25,23,.26)}
 .section.sel{box-shadow:0 0 0 calc(2px * var(--inv)) var(--accent)}
 .section.sel .sec-name{color:var(--accent)}
-.handle{display:none;position:absolute;right:0;bottom:0;width:calc(11px * var(--inv));height:calc(11px * var(--inv));
-  transform:translate(50%,50%);background:#FFFFFF;border:calc(1.5px * var(--inv)) solid var(--accent);border-radius:calc(3px * var(--inv));cursor:nwse-resize;z-index:2}
+.handle{display:none;position:absolute;width:calc(16px * var(--inv));height:calc(16px * var(--inv));background:transparent;z-index:2}
+.handle.tl{left:0;top:0;transform:translate(-50%,-50%);cursor:nwse-resize}
+.handle.tr{right:0;top:0;transform:translate(50%,-50%);cursor:nesw-resize}
+.handle.bl{left:0;bottom:0;transform:translate(-50%,50%);cursor:nesw-resize}
+.handle.br{right:0;bottom:0;transform:translate(50%,50%);cursor:nwse-resize}
 .item.handle-off .handle{display:none}
 #world.single .sel > .handle{display:block}
-.item.sel.polaroid .handle{right:calc(-3px * var(--inv));bottom:calc(-3px * var(--inv))}
+@media (hover:hover) and (pointer:fine){ .item:hover > .handle{display:block} }
 #marquee{position:absolute;border:calc(1px * var(--inv)) solid var(--accent);background:rgba(28,25,23,.08);pointer-events:none;border-radius:calc(2px * var(--inv))}
 
 /* ---------- Floating chrome ---------- */
@@ -209,7 +212,9 @@ button{cursor:pointer}
 }
 @media (hover:none){
   [data-tip]:hover::after{display:none}
-  .handle{width:calc(20px * var(--inv));height:calc(20px * var(--inv));border-radius:50%}
+  .handle{width:calc(40px * var(--inv));height:calc(40px * var(--inv))}
+  /* On touch, photos, notes and decorations scale with two fingers; corners resize chapters only. */
+  #world.single .item.sel > .handle{display:none}
   .cbtn,.swatch{height:38px;min-width:38px}
   .dditem{height:42px}
 }
@@ -302,7 +307,7 @@ body.viewer #viewport{cursor:grab}
 }
 
 /* ---------- Rotate: corner zones on desktop ---------- */
-.item .rot{position:absolute;width:calc(32px * var(--inv));height:calc(32px * var(--inv));display:none;place-items:center;z-index:4;cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab}
+.item .rot{position:absolute;width:calc(32px * var(--inv));height:calc(32px * var(--inv));display:none;place-items:center;z-index:4;cursor:grab}
 .item .rot svg{width:calc(15px * var(--inv));height:calc(15px * var(--inv));color:#A8A29E;opacity:0;transition:opacity .18s ease}
 /* Each zone sits on its corner (a little inside the frame, mostly outside) so pointing at the corner finds it. */
 .item .rot.tl{left:calc(-22px * var(--inv));top:calc(-22px * var(--inv))}
@@ -314,7 +319,7 @@ body.viewer #viewport{cursor:grab}
   .item:hover .rot,.item.sel .rot,.item.rotating .rot{display:grid}
   .item .rot:hover svg,.item.rotating .rot svg{opacity:1}
 }
-body.rotating,body.rotating *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23FFFFFF' stroke-width='4'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3Cg stroke='%2378716C' stroke-width='1.8'%3E%3Cpath d='M19 12a7 7 0 1 1-2.05-4.95'/%3E%3Cpath d='M19 4.5v4h-4'/%3E%3C/g%3E%3C/svg%3E") 12 12, grab !important}
+body.rotating,body.rotating *{cursor:grabbing!important}
 body.viewer .item .rot{display:none!important}
 
 /* ---------- Decorations: washi tape and pins, placed freely ---------- */
@@ -538,6 +543,7 @@ function clean(it){
   for (const k in it) if (k !== "id" && !k.startsWith("_")) o[k] = it[k];
   return o;
 }
+const HANDLES = ["tl","tr","bl","br"].map(c => `<div class="handle ${c}" data-c="${c}"></div>`).join("");
 function bounds(it){
   if (it.type === "section") return { x: it.x, y: it.y, w: it.w, h: it.h };
   const el = els.get(it.id);
@@ -607,7 +613,7 @@ function build(it){
   if (it.type === "photo") {
     el.className = "item polaroid";
     const rotIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg>';
-    el.innerHTML = ["tl","tr","bl","br"].map(c => `<div class="rot ${c}" aria-hidden="true">${rotIcon}</div>`).join("") + `<div class="deco"></div><div class="ph"><img alt="" draggable="false" decoding="async"></div><div class="foot"><div class="cap" spellcheck="false"></div></div><div class="handle"></div>`;
+    el.innerHTML = ["tl","tr","bl","br"].map(c => `<div class="rot ${c}" aria-hidden="true">${rotIcon}</div>`).join("") + `<div class="deco"></div><div class="ph"><img alt="" draggable="false" decoding="async"></div><div class="foot"><div class="cap" spellcheck="false"></div></div>` + HANDLES;
     const img = el.querySelector("img");
     img.addEventListener("error", () => { if (img.getAttribute("src")) el.classList.add("broken"); });
     img.addEventListener("load", () => el.classList.remove("broken"));
@@ -618,13 +624,13 @@ function build(it){
     el.className = "item deco";
     const rotIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg>';
     // Pins are round, so only tape gets rotate corners.
-    el.innerHTML = (it.kind === "pin" ? "" : ["tl","tr","bl","br"].map(c => `<div class="rot ${c}" aria-hidden="true">${rotIcon}</div>`).join("")) + `<div class="deco-body"></div><div class="handle"></div>`;
+    el.innerHTML = (it.kind === "pin" ? "" : ["tl","tr","bl","br"].map(c => `<div class="rot ${c}" aria-hidden="true">${rotIcon}</div>`).join("")) + `<div class="deco-body"></div>` + HANDLES;
   } else if (it.type === "note") {
     el.className = "item note";
-    el.innerHTML = `<div class="txt" spellcheck="false"></div><div class="handle"></div>`;
+    el.innerHTML = `<div class="txt" spellcheck="false"></div>` + HANDLES;
   } else {
     el.className = "section";
-    el.innerHTML = `<svg class="sec-ol" aria-hidden="true"><rect x="0" y="0" width="100%" height="100%" rx="16" ry="16"/></svg><div class="sec-title"><span class="sec-name" spellcheck="false"></span></div><div class="handle"></div>`;
+    el.innerHTML = `<svg class="sec-ol" aria-hidden="true"><rect x="0" y="0" width="100%" height="100%" rx="16" ry="16"/></svg><div class="sec-title"><span class="sec-name" spellcheck="false"></span></div>` + HANDLES;
   }
   return el;
 }
@@ -1148,13 +1154,18 @@ function startTwist(){
   commitMove();
   const it = items.get(id); if (!it) { gesture = null; return; }
   busy.add(id);
-  gesture = { kind:"twist", id, a0: Math.atan2(b.y - a.y, b.x - a.x), r0: it.rot || 0, moved:false };
+  const bb = bounds(it);
+  gesture = { kind:"twist", id, a0: Math.atan2(b.y - a.y, b.x - a.x), d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, r0: it.rot || 0,
+    w0: it.w, cx: bb.x + bb.w / 2, cy: bb.y + bb.h / 2, ar: bb.h / bb.w, spin: it.type === "photo" || (it.type === "deco" && it.kind !== "pin"), moved:false };
   ctxEl.classList.add("hide");
 }
 function updateTwist(){
   const [a, b] = [...touches.values()], g = gesture, it = items.get(g.id); if (!it) return;
-  const d = (Math.atan2(b.y - a.y, b.x - a.x) - g.a0) * 180 / Math.PI;
-  it.rot = snapRot(g.r0 + d); g.moved = true; render(it);
+  if (g.spin) it.rot = snapRot(g.r0 + (Math.atan2(b.y - a.y, b.x - a.x) - g.a0) * 180 / Math.PI);
+  const min = it.type === "deco" ? (it.kind === "pin" ? 10 : 40) : 120;
+  const nw = clamp(g.w0 * Math.hypot(b.x - a.x, b.y - a.y) / g.d0, min, 1600);
+  it.w = Math.round(nw); it.x = Math.round(g.cx - nw / 2); it.y = Math.round(g.cy - nw * g.ar / 2);
+  g.moved = true; render(it);
 }
 function updatePinch(){
   const [a, b] = [...touches.values()];
@@ -1208,10 +1219,13 @@ vp.addEventListener("pointerdown", e => {
     ctxEl.classList.add("hide");
     return;
   }
-  if (itemEl && handle && selected.has(itemEl.dataset.id)) {
+  if (itemEl && handle) {
     const id = itemEl.dataset.id, it = items.get(id);
+    if (!selected.has(id) || selected.size !== 1) select([id]);
     busy.add(id);
-    gesture = { kind:"resize", id, start:w, w0:it.w, h0:it.h, moved:false };
+    const b = bounds(it), c = handle.dataset.c || "br";
+    gesture = { kind:"resize", id, start:w, x0:it.x, y0:it.y, w0:it.w, h0:it.h, bw:b.w, bh:b.h,
+      sx: c[1] === "l" ? -1 : 1, sy: c[0] === "t" ? -1 : 1, moved:false };
     ctxEl.classList.add("hide");
     return;
   }
@@ -1228,7 +1242,7 @@ vp.addEventListener("pointerdown", e => {
     const starts = new Map();
     ids.forEach(i => { const it = items.get(i); if (it) starts.set(i, { x: it.x, y: it.y }); });
     gesture = { kind:"move", start:w, sx:e.clientX, sy:e.clientY, starts, moved:false, hitId:id, shift:e.shiftKey,
-      twistable: e.pointerType === "touch" && wasSelected && (items.get(id)?.type === "photo" || (items.get(id)?.type === "deco" && items.get(id)?.kind !== "pin")) };
+      twistable: e.pointerType === "touch" && wasSelected && ["photo","deco","note"].includes(items.get(id)?.type) };
     return;
   }
   gesture = { kind:"marquee", start:w, sx:e.clientX, sy:e.clientY, base: e.shiftKey ? new Set(selected) : new Set() };
@@ -1271,10 +1285,24 @@ addEventListener("pointermove", e => {
     const it = items.get(g.id); if (!it) return;
     g.moved = true;
     const dx = w.x - g.start.x, dy = w.y - g.start.y;
-    if (it.type === "section") { it.w = Math.round(Math.max(240, g.w0 + dx)); it.h = Math.round(Math.max(160, g.h0 + dy)); }
-    else {
+    if (it.type === "section") {
+      // Drag any corner; the opposite corner stays put.
+      const nw = Math.max(240, g.w0 + g.sx * dx), nh = Math.max(160, g.h0 + g.sy * dy);
+      it.w = Math.round(nw); it.h = Math.round(nh);
+      it.x = Math.round(g.sx < 0 ? g.x0 + g.w0 - nw : g.x0);
+      it.y = Math.round(g.sy < 0 ? g.y0 + g.h0 - nh : g.y0);
+    } else {
+      // Scale evenly, keeping the opposite corner fixed even when the item is tilted.
       const min = it.type === "deco" ? (it.kind === "pin" ? 10 : 40) : 120;
-      it.w = Math.round(clamp(g.w0 + dx, min, 1600));
+      const r = (it.rot || 0) * Math.PI / 180, cos = Math.cos(r), sin = Math.sin(r);
+      const lx = dx * cos + dy * sin, ly = -dx * sin + dy * cos;
+      const grow = (g.sx * lx + g.sy * ly * g.bw / g.bh) / 2;
+      const nw = clamp(g.w0 + grow * g.w0 / g.bw, min, 1600), k = nw / g.w0;
+      const ox = -g.sx * g.bw / 2, oy = -g.sy * g.bh / 2;
+      const ax = g.x0 + g.bw / 2 + ox * cos - oy * sin, ay = g.y0 + g.bh / 2 + ox * sin + oy * cos;
+      const cx = ax - k * (ox * cos - oy * sin), cy = ay - k * (ox * sin + oy * cos);
+      it.w = Math.round(nw);
+      it.x = Math.round(cx - g.bw * k / 2); it.y = Math.round(cy - g.bh * k / 2);
     }
     render(it); return;
   }

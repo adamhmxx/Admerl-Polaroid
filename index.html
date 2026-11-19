@@ -1,6 +1,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>admerl memories</title>
+<script>
+(function(){
+  function wibHour(){ return (new Date().getUTCHours() + 7) % 24; }
+  function apply(){
+    var h = wibHour(), t = (h >= 18 || h < 6) ? "dark" : "light";
+    if (document.documentElement.dataset.theme !== t) document.documentElement.dataset.theme = t;
+  }
+  apply();
+  // Check again every minute and whenever the page comes back into view.
+  setInterval(apply, 60000);
+  document.addEventListener("visibilitychange", function(){ if (document.visibilityState === "visible") apply(); });
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Geist:wght@400;500;600&display=swap">
@@ -349,6 +362,46 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
   .polaroid.uploading .ph::after{animation:none}
   .polaroid{transition:none}
 }
+
+/* ---------- Dark mode: 18:00–06:00 WIB ---------- */
+:root[data-theme="dark"]{
+  --canvas:#1C1917; --dot:#3A3532; --panel:#292524; --ink:#F5F5F4; --muted:#A8A29E;
+  --line:#3A3532; --hover:#353130; --accent:#F5F5F4; --accent-soft:#44403C; --photo-bg:#292524;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+body,#viewport{transition:background-color .4s ease}
+:root[data-theme="dark"] .pill-btn,
+:root[data-theme="dark"] .tr-dock .panel.zoom,
+:root[data-theme="dark"] .btn:not(.primary){background:linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,0) 100%),#292524;border-color:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03),0 2px 6px rgba(0,0,0,.35);color:#F5F5F4}
+:root[data-theme="dark"] .pill-btn:hover,
+:root[data-theme="dark"] .btn:not(.primary):hover{background:linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,0) 100%),#353130}
+:root[data-theme="dark"] .round-btn{background:#292524;border-color:rgba(255,255,255,.08);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+:root[data-theme="dark"] .round-btn:hover,
+:root[data-theme="dark"] .tbtn[aria-pressed="true"],
+:root[data-theme="dark"] .cbtn[aria-pressed="true"],
+:root[data-theme="dark"] .dditem[aria-pressed="true"]{background:#353130}
+:root[data-theme="dark"] .tbtn.primary,
+:root[data-theme="dark"] .btn.primary{background:linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(0,0,0,.05) 100%),#F5F5F4;border-color:#F5F5F4;color:#1C1917}
+:root[data-theme="dark"] .tbtn.primary:hover,
+:root[data-theme="dark"] .btn.primary:hover{background:#E7E5E4}
+:root[data-theme="dark"] [data-tip]:hover::after,
+:root[data-theme="dark"] .toast,
+:root[data-theme="dark"] .drop span{color:#1C1917}
+:root[data-theme="dark"] .toast button{background:rgba(0,0,0,.08);color:#1C1917}
+:root[data-theme="dark"] .toast button:hover{background:rgba(0,0,0,.14)}
+:root[data-theme="dark"] .swatch[aria-pressed="true"] span{box-shadow:0 0 0 2px #292524,0 0 0 3.5px var(--accent)}
+:root[data-theme="dark"] .swatch span{border-color:rgba(255,255,255,.12)}
+:root[data-theme="dark"] .section:hover:not(.sel) .sec-ol rect,
+:root[data-theme="dark"] .section.draft .sec-ol rect{stroke:#78716C}
+:root[data-theme="dark"] .lb{background:rgba(28,25,23,.97)}
+:root[data-theme="dark"] .auth-pop input{background:#1C1917}
+:root[data-theme="dark"] .item .rot svg{color:#78716C}
+/* Handwriting on the canvas keeps its hue but turns light enough to read on the dark board. */
+:root[data-theme="dark"] .note .txt{color:color-mix(in srgb, var(--pen) 38%, #F5F5F4)}
+:root[data-theme="dark"] .item.stroke .ln{stroke:color-mix(in srgb, var(--pen) 38%, #F5F5F4)}
+:root[data-theme="dark"] .pen-live path{stroke:color-mix(in srgb, var(--pen) 38%, #F5F5F4)}
+:root[data-theme="dark"] .polaroid{box-shadow:0 1px 1px rgba(0,0,0,.3),0 2px 6px rgba(0,0,0,.25),0 14px 28px -14px rgba(0,0,0,.6)}
 </style>
 
 <div id="viewport" class="tool-select" aria-label="Photo canvas">
@@ -1919,7 +1972,7 @@ function startPen(w){
   live.setAttribute("class", "pen-live");
   live.setAttribute("width", "1"); live.setAttribute("height", "1");
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("fill", "none"); path.setAttribute("stroke", colorOf(penColor));
+  path.setAttribute("fill", "none"); path.setAttribute("stroke", colorOf(penColor)); path.style.setProperty("--pen", colorOf(penColor));
   path.setAttribute("stroke-width", size); path.setAttribute("stroke-linecap", "round"); path.setAttribute("stroke-linejoin", "round");
   live.append(path); itemLayer.append(live);
   gesture = { kind:"pen", pts:[w.x, w.y], live, path, size };

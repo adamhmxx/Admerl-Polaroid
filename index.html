@@ -51,15 +51,9 @@ button{cursor:pointer}
 
 #viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
   background-color:var(--canvas);
-  background-image:radial-gradient(circle, var(--dot) 1px, transparent 1.3px);
-  background-size:24px 24px}
-/* A slow, soft wave across the dot grid: bands of canvas color drift over it so the dots fade in and out. */
-#viewport::before{content:"";position:absolute;left:-50%;top:-50%;width:200%;height:200%;pointer-events:none;will-change:transform;
-  --wv:color-mix(in srgb, var(--canvas) 78%, transparent);
-  background:repeating-linear-gradient(115deg,transparent 0,color-mix(in srgb, var(--canvas) 30%, transparent) 110px,var(--wv) 220px,color-mix(in srgb, var(--canvas) 30%, transparent) 330px,transparent 440px);
-  animation:board-wave 16s linear infinite}
-@keyframes board-wave{from{transform:translate(0,0)}to{transform:translate(398.8px,185.9px)}}
-@media (prefers-reduced-motion:reduce){#viewport::before{animation:none}}
+}
+/* The dot grid is drawn on a canvas so it can ripple and glow under the pointer. */
+#dots{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block}
 #viewport.tool-hand{cursor:grab}
 #viewport.panning,#viewport.panning *{cursor:grabbing!important}
 #viewport.tool-note,#viewport.tool-section{cursor:crosshair}
@@ -411,6 +405,7 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
 </style>
 
 <div id="viewport" class="tool-select" aria-label="Photo canvas">
+  <canvas id="dots" aria-hidden="true"></canvas>
   <div id="world">
     <div id="layer-sections"></div>
     <div id="layer-items"></div>
@@ -626,14 +621,64 @@ function childrenOf(sid){
   return out;
 }
 
+/* ---------------- dot grid: wave + hover glow ---------------- */
+// Dots brighten in soft bands that roll from the bottom-left to the top-right, forever;
+// the dots around the pointer light up more than the rest.
+const dotsCv = document.getElementById("dots"), dctx = dotsCv.getContext("2d");
+let dotW = 0, dotH = 0, dotDpr = 1;
+const dotPal = { light: { base: [168,162,158], hot: [87,83,78] }, dark: { base: [120,113,108], hot: [231,229,228] } };
+const glow = { x: -1e4, y: -1e4, on: 0, target: 0 };
+function sizeDots(){
+  dotDpr = Math.min(2, devicePixelRatio || 1);
+  dotW = vp.clientWidth; dotH = vp.clientHeight;
+  dotsCv.width = Math.round(dotW * dotDpr); dotsCv.height = Math.round(dotH * dotDpr);
+}
+vp.addEventListener("pointermove", e => { glow.x = e.clientX; glow.y = e.clientY; glow.target = 1; });
+vp.addEventListener("pointerdown", e => { glow.x = e.clientX; glow.y = e.clientY; glow.target = 1; });
+vp.addEventListener("pointerleave", () => { glow.target = 0; });
+addEventListener("pointerup", e => { if (e.pointerType === "touch") glow.target = 0; });
+addEventListener("resize", () => { sizeDots(); });
+function drawDots(now){
+  requestAnimationFrame(drawDots);
+  if (!dotW) sizeDots();
+  glow.on += (glow.target - glow.on) * 0.12;
+  const t = now / 1000, theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  const pal = dotPal[theme];
+  let g = 24 * cam.s; while (g < 12) g *= 4;
+  const ox = ((cam.x % g) + g) % g + g / 2 - g, oy = ((cam.y % g) + g) % g + g / 2 - g;
+  const c = dctx; c.setTransform(dotDpr, 0, 0, dotDpr, 0, 0); c.clearRect(0, 0, dotW, dotH);
+  const R = 150, R2 = R * R, lam = 560, speed = 0.11, r0 = 1.05;
+  const tau = Math.PI * 2, k = 1 / (Math.SQRT2 * lam);
+  // Most dots are batched by brightness level (one fill per level); only the few under the pointer are drawn one by one.
+  const LV = 14, paths = Array.from({ length: LV }, () => new Path2D()), hot = [];
+  for (let y = oy; y < dotH + g; y += g) {
+    for (let x = ox; x < dotW + g; x += g) {
+      // Position along the bottom-left → top-right diagonal, moving with time.
+      const w = 0.5 + 0.5 * Math.sin(tau * ((x - y) * k - t * speed));
+      const a = 0.28 + 0.62 * w * w;
+      if (glow.on > 0.01) {
+        const dx = x - glow.x, dy = y - glow.y, d2 = dx * dx + dy * dy;
+        if (d2 < R2) { const f = 1 - Math.sqrt(d2) / R, b = f * f * glow.on; if (b > 0.02) { hot.push(x, y, Math.min(1, a + b), b); continue; } }
+      }
+      const p = paths[Math.min(LV - 1, Math.round((a - 0.28) / 0.62 * (LV - 1)))];
+      p.moveTo(x + r0, y); p.arc(x, y, r0, 0, tau);
+    }
+  }
+  const [br, bg, bb] = pal.base;
+  for (let l = 0; l < LV; l++) { c.fillStyle = `rgba(${br},${bg},${bb},${(0.28 + 0.62 * l / (LV - 1)).toFixed(3)})`; c.fill(paths[l]); }
+  for (let n = 0; n < hot.length; n += 4) {
+    const x = hot[n], y = hot[n + 1], a = hot[n + 2], m = hot[n + 3];
+    c.fillStyle = `rgba(${Math.round(br + (pal.hot[0] - br) * m)},${Math.round(bg + (pal.hot[1] - bg) * m)},${Math.round(bb + (pal.hot[2] - bb) * m)},${a.toFixed(3)})`;
+    c.beginPath(); c.arc(x, y, r0 + m * 0.55, 0, tau); c.fill();
+  }
+}
+requestAnimationFrame(drawDots);
+
 /* ---------------- camera ---------------- */
 let camSaveT, camReady = false;
 function applyCam(){
   world.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.s})`;
   world.style.setProperty("--inv", (1 / cam.s).toFixed(4));
-  let g = 24 * cam.s; while (g < 12) g *= 4;
-  vp.style.backgroundSize = `${g}px ${g}px`;
-  vp.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
   $("#zoomPct").textContent = Math.round(cam.s * 100) + "%";
   positionCtx();
   clearTimeout(camSaveT);

@@ -53,6 +53,13 @@ button{cursor:pointer}
   background-color:var(--canvas);
   background-image:radial-gradient(circle, var(--dot) 1px, transparent 1.3px);
   background-size:24px 24px}
+/* A slow, soft wave across the dot grid: bands of canvas color drift over it so the dots fade in and out. */
+#viewport::before{content:"";position:absolute;left:-50%;top:-50%;width:200%;height:200%;pointer-events:none;will-change:transform;
+  --wv:color-mix(in srgb, var(--canvas) 78%, transparent);
+  background:repeating-linear-gradient(115deg,transparent 0,color-mix(in srgb, var(--canvas) 30%, transparent) 110px,var(--wv) 220px,color-mix(in srgb, var(--canvas) 30%, transparent) 330px,transparent 440px);
+  animation:board-wave 16s linear infinite}
+@keyframes board-wave{from{transform:translate(0,0)}to{transform:translate(398.8px,185.9px)}}
+@media (prefers-reduced-motion:reduce){#viewport::before{animation:none}}
 #viewport.tool-hand{cursor:grab}
 #viewport.panning,#viewport.panning *{cursor:grabbing!important}
 #viewport.tool-note,#viewport.tool-section{cursor:crosshair}
@@ -370,7 +377,6 @@ button svg .draw{stroke-dasharray:1 1;stroke-dashoffset:0}
   --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.6);
   color-scheme:dark;
 }
-body,#viewport{transition:background-color .4s ease}
 :root[data-theme="dark"] .pill-btn,
 :root[data-theme="dark"] .tr-dock .panel.zoom,
 :root[data-theme="dark"] .btn:not(.primary){background:linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,0) 100%),#292524;border-color:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03),0 2px 6px rgba(0,0,0,.35);color:#F5F5F4}

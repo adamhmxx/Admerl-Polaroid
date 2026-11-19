@@ -647,7 +647,7 @@ function drawDots(now){
   let g = 24 * cam.s; while (g < 12) g *= 4;
   const ox = ((cam.x % g) + g) % g + g / 2 - g, oy = ((cam.y % g) + g) % g + g / 2 - g;
   const c = dctx; c.setTransform(dotDpr, 0, 0, dotDpr, 0, 0); c.clearRect(0, 0, dotW, dotH);
-  const R = 150, R2 = R * R, lam = 460, speed = 0.32, r0 = 1.05, A0 = 0.16, A1 = 0.84;
+  const R = 150, R2 = R * R, lam = 460, speed = 0.32, r0 = 1.05, A0 = 0.5, A1 = 0.15;
   const tau = Math.PI * 2, k = 1 / (Math.SQRT2 * lam);
   // Most dots are batched by brightness level (one fill per level); only the few under the pointer are drawn one by one.
   const LV = 14, paths = Array.from({ length: LV }, () => new Path2D()), hot = [];
@@ -658,19 +658,19 @@ function drawDots(now){
       const a = A0 + A1 * w3;
       if (glow.on > 0.01) {
         const dx = x - glow.x, dy = y - glow.y, d2 = dx * dx + dy * dy;
-        if (d2 < R2) { const f = 1 - Math.sqrt(d2) / R, b = f * f * glow.on; if (b > 0.02) { hot.push(x, y, Math.min(1, a + b), b); continue; } }
+        if (d2 < R2) { const f = 1 - Math.sqrt(d2) / R, b = f * f * glow.on; if (b > 0.02) { hot.push(x, y, Math.min(A0 + A1, a + b * A1), b); continue; } }
       }
       // The crest is brighter and the dots swell a little as it passes.
-      const l = Math.min(LV - 1, Math.round(w3 * (LV - 1))), rr = r0 + 0.45 * l / (LV - 1);
+      const l = Math.min(LV - 1, Math.round(w3 * (LV - 1))), rr = r0 + 0.15 * l / (LV - 1);
       paths[l].moveTo(x + rr, y); paths[l].arc(x, y, rr, 0, tau);
     }
   }
   const [br, bg, bb] = pal.base;
   for (let l = 0; l < LV; l++) { c.fillStyle = `rgba(${br},${bg},${bb},${(A0 + A1 * l / (LV - 1)).toFixed(3)})`; c.fill(paths[l]); }
   for (let n = 0; n < hot.length; n += 4) {
-    const x = hot[n], y = hot[n + 1], a = hot[n + 2], m = hot[n + 3];
+    const x = hot[n], y = hot[n + 1], a = hot[n + 2], m = hot[n + 3] * 0.25;
     c.fillStyle = `rgba(${Math.round(br + (pal.hot[0] - br) * m)},${Math.round(bg + (pal.hot[1] - bg) * m)},${Math.round(bb + (pal.hot[2] - bb) * m)},${a.toFixed(3)})`;
-    c.beginPath(); c.arc(x, y, r0 + m * 0.55, 0, tau); c.fill();
+    c.beginPath(); c.arc(x, y, r0 + m * 0.15, 0, tau); c.fill();
   }
 }
 requestAnimationFrame(drawDots);

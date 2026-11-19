@@ -647,25 +647,26 @@ function drawDots(now){
   let g = 24 * cam.s; while (g < 12) g *= 4;
   const ox = ((cam.x % g) + g) % g + g / 2 - g, oy = ((cam.y % g) + g) % g + g / 2 - g;
   const c = dctx; c.setTransform(dotDpr, 0, 0, dotDpr, 0, 0); c.clearRect(0, 0, dotW, dotH);
-  const R = 150, R2 = R * R, lam = 560, speed = 0.11, r0 = 1.05;
+  const R = 150, R2 = R * R, lam = 460, speed = 0.32, r0 = 1.05, A0 = 0.16, A1 = 0.84;
   const tau = Math.PI * 2, k = 1 / (Math.SQRT2 * lam);
   // Most dots are batched by brightness level (one fill per level); only the few under the pointer are drawn one by one.
   const LV = 14, paths = Array.from({ length: LV }, () => new Path2D()), hot = [];
   for (let y = oy; y < dotH + g; y += g) {
     for (let x = ox; x < dotW + g; x += g) {
       // Position along the bottom-left → top-right diagonal, moving with time.
-      const w = 0.5 + 0.5 * Math.sin(tau * ((x - y) * k - t * speed));
-      const a = 0.28 + 0.62 * w * w;
+      const w = 0.5 + 0.5 * Math.sin(tau * ((x - y) * k - t * speed)), w3 = w * w * w;
+      const a = A0 + A1 * w3;
       if (glow.on > 0.01) {
         const dx = x - glow.x, dy = y - glow.y, d2 = dx * dx + dy * dy;
         if (d2 < R2) { const f = 1 - Math.sqrt(d2) / R, b = f * f * glow.on; if (b > 0.02) { hot.push(x, y, Math.min(1, a + b), b); continue; } }
       }
-      const p = paths[Math.min(LV - 1, Math.round((a - 0.28) / 0.62 * (LV - 1)))];
-      p.moveTo(x + r0, y); p.arc(x, y, r0, 0, tau);
+      // The crest is brighter and the dots swell a little as it passes.
+      const l = Math.min(LV - 1, Math.round(w3 * (LV - 1))), rr = r0 + 0.45 * l / (LV - 1);
+      paths[l].moveTo(x + rr, y); paths[l].arc(x, y, rr, 0, tau);
     }
   }
   const [br, bg, bb] = pal.base;
-  for (let l = 0; l < LV; l++) { c.fillStyle = `rgba(${br},${bg},${bb},${(0.28 + 0.62 * l / (LV - 1)).toFixed(3)})`; c.fill(paths[l]); }
+  for (let l = 0; l < LV; l++) { c.fillStyle = `rgba(${br},${bg},${bb},${(A0 + A1 * l / (LV - 1)).toFixed(3)})`; c.fill(paths[l]); }
   for (let n = 0; n < hot.length; n += 4) {
     const x = hot[n], y = hot[n + 1], a = hot[n + 2], m = hot[n + 3];
     c.fillStyle = `rgba(${Math.round(br + (pal.hot[0] - br) * m)},${Math.round(bg + (pal.hot[1] - bg) * m)},${Math.round(bb + (pal.hot[2] - bb) * m)},${a.toFixed(3)})`;
